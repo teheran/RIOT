@@ -842,6 +842,7 @@ EXCLUDE_PATTERNS       = */board/*/tools/* \
                          */cpu/ezr32wg/include/ezr* \
                          */pkg/*/*/* \
                          */pkg/tlsf/patch.txt \
+                         */sys/random/fortuna/* \
                          */sys/random/tinymt32/* \
 
 

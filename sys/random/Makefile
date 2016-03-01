@@ -1,3 +1,7 @@
+ifneq (,$(filter prng_fortuna,$(USEMODULE)))
+    SRC += prng_fortuna.c
+    DIRS += fortuna
+endif
 ifneq (,$(filter prng_mersenne,$(USEMODULE)))
     SRC += mersenne.c
 endif
