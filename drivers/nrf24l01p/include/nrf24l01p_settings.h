@@ -26,8 +26,11 @@
 extern "C" {
 #endif
 
+#define NRF24L01P_MAX_PAYLOAD_LENGTH 32
+#define NRF24L01P_MAX_ADDRESS_LENGTH 5
+#define NRF24L01P_MIN_ADDRESS_LENGTH 3
+
 #define INITIAL_ADDRESS_WIDTH       5
-#define NRF24L01P_MAX_DATA_LENGTH   32
 #ifndef INITIAL_RF_CHANNEL
 #define INITIAL_RF_CHANNEL          5
 #endif
@@ -40,12 +43,10 @@ extern "C" {
 #define DELAY_CHANGE_TXRX_US        (130)
 #define DELAY_CE_START_US           (5)
 /*
- * This is the time which is needed to physically transmit the data.
- * Compare nrf24l01+ pruduct specification p.42. It is computed just
- * for this setup
+ * This is the time which is needed to physically transmit the data. Compare
+ * nRF24L01+ product datasheet on p.42. The value is computed for this driver.
  */
-#define DELAY_DATA_ON_AIR                   (1300)
-
+#define DELAY_DATA_ON_AIR           (1300)
 
 #define CMD_R_REGISTER          0x00
 #define CMD_W_REGISTER          0x20
@@ -59,10 +60,8 @@ extern "C" {
 #define CMD_W_TX_PAYLOAD_NOACK  0xb0
 #define CMD_NOP                 0xff
 
-#define REGISTER_MASK           0x1F
-
-
-#define REG_CONFIG              0x00    /* config */
+#define REG_MASK                0x1F
+#define REG_CONFIG              0x00
 #define REG_EN_AA               0x01    /* enhanced shockburst */
 #define REG_EN_RXADDR           0x02
 #define REG_SETUP_AW            0x03

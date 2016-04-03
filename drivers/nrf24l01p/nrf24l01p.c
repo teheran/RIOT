@@ -36,7 +36,7 @@ int nrf24l01p_read_reg(nrf24l01p_t *dev, char reg, char *answer)
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_reg(dev->spi, (CMD_R_REGISTER | (REGISTER_MASK & reg)), CMD_NOP, answer);
+    status = spi_transfer_reg(dev->spi, (CMD_R_REGISTER | (REG_MASK & reg)), CMD_NOP, answer);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -56,7 +56,7 @@ int nrf24l01p_write_reg(nrf24l01p_t *dev, char reg, char write)
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_reg(dev->spi, (CMD_W_REGISTER | (REGISTER_MASK & reg)), write, &reg_content);
+    status = spi_transfer_reg(dev->spi, (CMD_W_REGISTER | (REG_MASK & reg)), write, &reg_content);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -125,7 +125,7 @@ int nrf24l01p_init(nrf24l01p_t *dev, spi_t spi, gpio_t ce, gpio_t cs, gpio_t irq
     }
 
     /* Setup payload width */
-    status = nrf24l01p_set_payload_width(dev, NRF24L01P_PIPE0, NRF24L01P_MAX_DATA_LENGTH);
+    status = nrf24l01p_set_payload_width(dev, NRF24L01P_PIPE0, NRF24L01P_MAX_PAYLOAD_LENGTH);
 
     if (status < 0) {
         return status;
@@ -427,7 +427,7 @@ int nrf24l01p_set_tx_address(nrf24l01p_t *dev, char *saddr, unsigned int length)
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REGISTER_MASK & REG_TX_ADDR)), saddr, NULL, length); /* address width is 5 byte */
+    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REG_MASK & REG_TX_ADDR)), saddr, NULL, length); /* address width is 5 byte */
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -458,7 +458,7 @@ int nrf24l01p_set_tx_address_long(nrf24l01p_t *dev, uint64_t saddr, unsigned int
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REGISTER_MASK & REG_TX_ADDR)), buf, NULL, length); /* address width is 5 byte */
+    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REG_MASK & REG_TX_ADDR)), buf, NULL, length); /* address width is 5 byte */
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -479,7 +479,7 @@ uint64_t nrf24l01p_get_tx_address_long(nrf24l01p_t *dev)
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, (CMD_R_REGISTER | (REGISTER_MASK & REG_TX_ADDR)), 0, addr_array, INITIAL_ADDRESS_WIDTH); /* address width is 5 byte */
+    status = spi_transfer_regs(dev->spi, (CMD_R_REGISTER | (REG_MASK & REG_TX_ADDR)), 0, addr_array, INITIAL_ADDRESS_WIDTH); /* address width is 5 byte */
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -539,7 +539,7 @@ int nrf24l01p_set_rx_address(nrf24l01p_t *dev, nrf24l01p_rx_pipe_t pipe, char *s
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REGISTER_MASK & pipe_addr)), saddr, NULL, length); /* address width is 5 byte */
+    status = spi_transfer_regs(dev->spi, (CMD_W_REGISTER | (REG_MASK & pipe_addr)), saddr, NULL, length); /* address width is 5 byte */
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -611,7 +611,7 @@ uint64_t nrf24l01p_get_rx_address_long(nrf24l01p_t *dev, nrf24l01p_rx_pipe_t pip
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, (CMD_R_REGISTER | (REGISTER_MASK & pipe_addr)), 0, addr_array, INITIAL_ADDRESS_WIDTH); /* address width is 5 byte */
+    status = spi_transfer_regs(dev->spi, (CMD_R_REGISTER | (REG_MASK & pipe_addr)), 0, addr_array, INITIAL_ADDRESS_WIDTH); /* address width is 5 byte */
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     /* Release the bus for other threads. */
@@ -976,13 +976,13 @@ int nrf24l01p_enable_dynamic_ack(nrf24l01p_t *dev)
     char feature;
 
     if (nrf24l01p_read_reg(dev, REG_FEATURE, &feature) < 0){
-        DEBUG("Can't read FEATURE reg\n");
-       return -1;
+        DEBUG("Can't read REG_FEATURE\n");
+        return -1;
     }
     if (!(feature & FEATURE_EN_DYN_ACK)){
         feature |= FEATURE_EN_DYN_ACK;
         if (nrf24l01p_write_reg(dev, REG_FEATURE, feature) < 0){
-            DEBUG("Can't write FEATURE reg\n");
+            DEBUG("Can't write REG_FEATURE\n");
             return -1;
         }
     }
@@ -1017,7 +1017,6 @@ int nrf24l01p_disable_all_auto_ack(nrf24l01p_t *dev)
 {
     return nrf24l01p_write_reg(dev, REG_EN_AA, 0x00);
 }
-
 
 int nrf24l01p_flush_tx_fifo(nrf24l01p_t *dev)
 {
