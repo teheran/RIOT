@@ -21,18 +21,24 @@ initialize the transceiver (command: `it`), sending one packet (command:
 
 ### Procedure
 
- * take two boards and connect a transceiver to each
-   (it should be also possible to use one board with different SPI-ports)
- * depending on your board, you'll maybe also need to connect a UART/tty converter
- * build and flash the test-program to each
- * open a terminal (e.g. pyterm) for each
- * if possible, reset the board by using the reset-button. You'll see "_Welcome to RIOT_" etc.
- * type `help` to see the description of the commands
- * initialize both with `it`
- * with one board, send a packet by typing `send`
- * in the next step you can also use `send` to send data in the other direction
- * now you can use send on both boards/transceivers to send messages between them
+* take two boards and connect a transceiver to each
+(it should be also possible to use one board with different SPI-ports)
+* depending on your board, you'll maybe also need to connect a UART/tty converter
+* build and flash the test-program to each
+* open a terminal (e.g. pyterm) for each
+* if possible, reset the board by using the reset-button. You'll see "_Welcome to RIOT_" etc.
+* type `help` to see the description of the commands
+* initialize both with `it`
+* with one board, send a packet by typing `send`
+* in the next step you can also use `send` to send data in the other direction
+* now you can use send on both boards/transceivers to send messages between them
 
+In addition to the above test, the following tests the dynamic payload feature.
+
+* after initializing, run `en_dyn` on both boards
+* verify, using `prgs` that `REG_FEATURE` has bit 2 set to one and that `REG_DYNPD` has bit 0:4 set to one
+* run `send N`, and vary `N` with a value of 1 - 32 bytes.
+* verify that the other board receives the packet with `N` bytes
 
 ## Expected Results
 

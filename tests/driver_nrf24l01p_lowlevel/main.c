@@ -33,6 +33,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <board.h>
@@ -52,6 +53,7 @@
 
 static int cmd_send(int argc, char **argv);
 static int cmd_print_regs(int argc, char **argv);
+static int cmd_en_dyn(int argc, char **argv);
 static int cmd_its(int argc, char **argv);
 
 void printbin(unsigned byte);
@@ -65,7 +67,8 @@ static nrf24l01p_t nrf24l01p_0;
 static const shell_command_t shell_commands[] = {
     { "prgs", "print registers", cmd_print_regs },
     { "it", "init transceiver", cmd_its },
-    { "send", "send 32 bytes data", cmd_send },
+    { "en_dyn", "enable dynamic payloads", cmd_en_dyn },
+    { "send", "send up to 32 bytes of data", cmd_send },
     { NULL, NULL, NULL }
 };
 
@@ -83,14 +86,12 @@ void prtbin(unsigned byte)
  */
 void print_register(char reg, int num_bytes)
 {
-
     char buf_return[num_bytes];
     int ret;
 
-
     gpio_clear(CS_PIN);
     xtimer_usleep(1);
-    ret = spi_transfer_regs(SPI_PORT, (CMD_R_REGISTER | (REGISTER_MASK & reg)), 0, buf_return, num_bytes);
+    ret = spi_transfer_regs(SPI_PORT, (CMD_R_REGISTER | (REG_MASK & reg)), 0, buf_return, num_bytes);
     gpio_set(CS_PIN);
 
     if (ret < 0) {
@@ -124,7 +125,8 @@ void *nrf24l01p_rx_handler(void *arg)
     msg_t msg_q[1];
     msg_init_queue(msg_q, 1);
     unsigned int pid = thread_getpid();
-    char rx_buf[NRF24L01P_MAX_DATA_LENGTH];
+    char rx_buf[NRF24L01P_MAX_PAYLOAD_LENGTH];
+    int bytes;
 
     puts("Registering nrf24l01p_rx_handler thread...");
     nrf24l01p_register(&nrf24l01p_0, &pid);
@@ -142,7 +144,11 @@ void *nrf24l01p_rx_handler(void *arg)
                 nrf24l01p_stop((nrf24l01p_t *)m.content.ptr);
 
                 /* read payload */
-                nrf24l01p_read_payload((nrf24l01p_t *)m.content.ptr, rx_buf, NRF24L01P_MAX_DATA_LENGTH);
+                bytes = nrf24l01p_read_payload((nrf24l01p_t *)m.content.ptr, NULL, rx_buf, NRF24L01P_MAX_PAYLOAD_LENGTH);
+
+                if (bytes == 0) {
+                    puts("No payload read. Spurious interrupt?");
+                }
 
                 /* flush rx fifo */
                 nrf24l01p_flush_rx_fifo((nrf24l01p_t *)m.content.ptr);
@@ -151,7 +157,7 @@ void *nrf24l01p_rx_handler(void *arg)
                 nrf24l01p_start((nrf24l01p_t *)m.content.ptr);
 
                 /* print rx buffer */
-                for (int i = 0; i < NRF24L01P_MAX_DATA_LENGTH; i++) {
+                for (int i = 0; i < bytes; i++) {
                     printf("%i ", rx_buf[i]);
                 }
 
@@ -204,21 +210,58 @@ int cmd_its(int argc, char **argv)
 }
 
 /**
- * @set TX mode
+ * @set Enable dynamic payloads.
  */
-int cmd_send(int argc, char **argv)
+int cmd_en_dyn(int argc, char **argv)
 {
     (void) argc;
     (void) argv;
 
-    puts("Send");
+    puts("Enabling dynamic payloads");
+
+    /* enable dynamic payloads for all pipes */
+    nrf24l01p_rx_pipe_t pipe;
+
+    for (int i = 0; i < 6; i++) {
+        pipe = (nrf24l01p_rx_pipe_t) i;
+
+        if (nrf24l01p_enable_dynamic_payload(&nrf24l01p_0, pipe) < 0) {
+            puts("Error in nrf24l01p_enable_dynamic_payload");
+            return 1;
+        }
+    }
+
+    puts("Dynamic payloads enabled");
+
+    return 0;
+}
+
+/**
+ * @set TX mode
+ */
+int cmd_send(int argc, char **argv)
+{
+    int bytes;
+
+    if (argc > 1) {
+        bytes = atoi(argv[1]);
+
+        if (bytes < 1 || bytes > NRF24L01P_MAX_PAYLOAD_LENGTH) {
+            puts("Bytes must be in range 1..32");
+            return 1;
+        }
+    } else {
+        bytes = NRF24L01P_MAX_PAYLOAD_LENGTH;
+    }
+
+    printf("Sending %d bytes\n", bytes);
 
     int status = 0;
-    char tx_buf[NRF24L01P_MAX_DATA_LENGTH];
+    char tx_buf[NRF24L01P_MAX_PAYLOAD_LENGTH];
 
-    /* fill TX buffer with numbers 32..1 */
-    for (int i = 0; i < sizeof(tx_buf); i++) {
-        tx_buf[i] = NRF24L01P_MAX_DATA_LENGTH - i;
+    /* fill TX buffer with numbers bytes..1 */
+    for (int i = 0; i < bytes; i++) {
+        tx_buf[i] = NRF24L01P_MAX_PAYLOAD_LENGTH - i;
     }
     /* power on the device */
     if (nrf24l01p_on(&nrf24l01p_0) < 0) {
@@ -231,7 +274,7 @@ int cmd_send(int argc, char **argv)
         return 1;
     }
     /* load data to transmit into device */
-    if (nrf24l01p_preload(&nrf24l01p_0, tx_buf, NRF24L01P_MAX_DATA_LENGTH) < 0) {
+    if (nrf24l01p_preload(&nrf24l01p_0, tx_buf, bytes) < 0) {
         puts("Error in nrf24l01p_preload");
         return 1;
     }
