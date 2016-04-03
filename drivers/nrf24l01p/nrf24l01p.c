@@ -166,6 +166,13 @@ int nrf24l01p_init(nrf24l01p_t *dev, spi_t spi, gpio_t ce, gpio_t cs, gpio_t irq
         return status;
     }
 
+    /* Disable dynamic payloads */
+    status = nrf24l01p_disable_all_dynamic_payload(dev);
+
+    if (status < 0) {
+        return status;
+    }
+
     /* Reset auto ack for all pipes */
     status = nrf24l01p_disable_all_auto_ack(dev);
 
@@ -957,6 +964,30 @@ int nrf24l01p_enable_dynamic_ack(nrf24l01p_t *dev)
             return -1;
         }
     }
+    return 0;
+}
+
+int nrf24l01p_disable_all_dynamic_payload(nrf24l01p_t *dev)
+{
+    char features;
+
+    if (nrf24l01p_read_reg(dev, REG_FEATURE, &features) < 0) {
+        DEBUG("Can't read REG_FEATURE\n");
+        return -1;
+    }
+
+    if (features & FEATURE_EN_DPL) {
+        features &= ~(FEATURE_EN_DPL);
+
+        if (nrf24l01p_write_reg(dev, REG_FEATURE, features) < 0) {
+            DEBUG("Can't write REG_FEATURE\n");
+            return -1;
+        }
+    }
+
+    /* disable dynamic payloads on all pipes */
+    nrf24l01p_write_reg(dev, REG_DYNPD, 0x00);
+
     return 0;
 }
 

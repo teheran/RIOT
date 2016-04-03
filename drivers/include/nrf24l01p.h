@@ -586,6 +586,16 @@ int nrf24l01p_setup_auto_ack(nrf24l01p_t *dev, nrf24l01p_rx_pipe_t pipe, nrf24l0
 int nrf24l01p_disable_all_auto_ack(nrf24l01p_t *dev);
 
 /**
+* @brief Disable the dynamic payload feature.
+*
+* @param[in] dev    Transceiver device to use.
+*
+* @return           0 on success.
+* @return           -1 on error.
+*/
+int nrf24l01p_disable_all_dynamic_payload(nrf24l01p_t *dev);
+
+/**
 * @brief Flush TX FIFO on the nrf24l01+ transceiver.
 *
 * @param[in] dev    Transceiver device to use.
