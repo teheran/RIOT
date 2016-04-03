@@ -193,16 +193,19 @@ int nrf24l01p_off(nrf24l01p_t *dev);
 void nrf24l01p_transmit(nrf24l01p_t *dev);
 
 /**
-* @brief Read payload from RX FIFO of the nrf24l01+ transceiver.
+* @brief Read payload from RX FIFO of the nrf24l01+ transceiver. If there are
+*        less bytes in the FIFO, at most size bytes are read.
 *
-* @param[in] dev    Transceiver device to use.
-* @param[in] answer Buffer to receive bytes to.
-* @param[in] size   Number of bytes to transfer. For nrf24l01+ in general 32.
+* @param[in] dev        Transceiver device to use.
+* @param[out] pipe      Pointer to write receiving pipe into.
+* @param[out] answer    Buffer to receive bytes to.
+* @param[out] size      Number of bytes to transfer. For nrf24l01+ in general 32.
 *
 * @return           Number of bytes that were transfered.
+* @return           0 on no bytes read (no packet in FIFO).
 * @return           -1 on error.
 */
-int nrf24l01p_read_payload(nrf24l01p_t *dev, char *answer, unsigned int size);
+int nrf24l01p_read_payload(nrf24l01p_t *dev, nrf24l01p_rx_pipe_t *pipe, char *answer, unsigned int size);
 
 /**
 * @brief Register a given ID to the nrf24l01+ transceiver.

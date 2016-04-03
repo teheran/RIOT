@@ -239,15 +239,37 @@ void nrf24l01p_transmit(nrf24l01p_t *dev)
     xtimer_spin(DELAY_CHANGE_TXRX_US);
 }
 
-int nrf24l01p_read_payload(nrf24l01p_t *dev, char *answer, unsigned int size)
+int nrf24l01p_read_payload(nrf24l01p_t *dev, nrf24l01p_rx_pipe_t *pipe, char *answer, unsigned int size)
 {
-    int status;
+    char buf[] = { CMD_R_RX_PL_WID, CMD_NOP };
+    int status = 0;
 
     /* Acquire exclusive access to the bus. */
     spi_acquire(dev->spi);
     gpio_clear(dev->cs);
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
-    status = spi_transfer_regs(dev->spi, CMD_R_RX_PAYLOAD, 0, answer, size);
+
+    if (spi_transfer_bytes(dev->spi, buf, buf, 2) != 2) {
+        DEBUG("Can't execute CMD_R_RX_PAYLOAD + CMD_NOP\n");
+        return -1;
+    }
+
+    /* check if a packet is available for reading */
+    if ((buf[0] & RX_P_NO) != RX_P_NO) {
+        /* write pipe information if requested */
+        if (pipe != NULL) {
+            *pipe = (buf[0] & RX_P_NO) >> 1;
+        }
+
+        /* limit the number of bytes to read */
+        if (size > buf[1]) {
+            size = buf[1];
+        }
+
+        /* transfer the packet */
+        status = spi_transfer_regs(dev->spi, CMD_R_RX_PAYLOAD, 0, answer, size);
+    }
+
     xtimer_spin(DELAY_CS_TOGGLE_TICKS);
     gpio_set(dev->cs);
     xtimer_spin(DELAY_AFTER_FUNC_TICKS);
