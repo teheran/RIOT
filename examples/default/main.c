@@ -42,6 +42,8 @@
 #include "net/gnrc.h"
 #endif
 
+#include <semihosted_uart.h>
+
 int main(void)
 {
 #ifdef MODULE_LTC4150
@@ -61,6 +63,8 @@ int main(void)
 #endif
 
     (void) puts("Welcome to RIOT!");
+
+    semihosted_uart_startthread();
 
     char line_buf[SHELL_DEFAULT_BUFSIZE];
     shell_run(NULL, line_buf, SHELL_DEFAULT_BUFSIZE);

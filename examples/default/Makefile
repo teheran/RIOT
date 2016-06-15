@@ -2,7 +2,9 @@
 APPLICATION = default
 
 # If no BOARD is found in the environment, use this default:
-BOARD ?= native
+BOARD ?= stk3700
+
+LINKFLAGS += -B/usr/lib/arm-none-eabi/newlib/armv7-m/
 
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
@@ -68,5 +70,9 @@ ifneq (,$(filter msba2,$(BOARD)))
   USEMODULE += mci
   USEMODULE += random
 endif
+
+USEMODULE += mixed_peripherals semihosted_uart pipe_uart
+#CFLAGS += -D'UART_STDIO_DEV=UART_PIPE(&auxpipe, 0)'
+CFLAGS += -D'UART_STDIO_DEV=UART_SEMIHOSTED(0, ":tt", ":tt")'
 
 include $(RIOTBASE)/Makefile.include
