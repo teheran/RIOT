@@ -92,6 +92,9 @@ endif
 ifneq (,$(filter sema,$(USEMODULE)))
     DIRS += sema
 endif
+ifneq (,$(filter mixed_peripherals,$(USEMODULE)))
+    DIRS += mixed_peripherals
+endif
 ifneq (,$(filter pipe_uart,$(USEMODULE)))
     DIRS += pipe_uart
 endif

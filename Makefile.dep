@@ -566,3 +566,7 @@ ifneq (,$(filter random,$(USEMODULE)))
         USEMODULE += tinymt32
     endif
 endif
+
+ifneq (,$(filter mixed_peripherals,$(USEMODULE)))
+  CFLAGS += -DMIXED_PERIPHERALS
+endif

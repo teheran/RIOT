@@ -70,8 +70,26 @@ extern "C" {
  * @brief   Define default UART type identifier
  * @{
  */
+#ifdef MIXED_PERIPHERALS
+#include <pipe_uart.h>
+#include <semihosted_uart.h>
+/* @FIXME those are still in here because UART_DEV(0) works without identifiers and UART_PIPE needs some */
+extern pipe_t auxpipe;
+typedef struct {
+	enum { class_efm32, class_pipe, class_semihosted } cls;
+	union {
+		efm32_uart_t efm32;
+		pipe_uart_t pipe;
+		semihosted_uart_t semihosted;
+	} arg;
+} uart_t;
+#ifdef HAVE_UART_T
+#error "CPUs must not override uart_t when MIXED_PERIPHERALS is defined."
+#endif
+#else
 #ifndef HAVE_UART_T
 typedef unsigned int uart_t;
+#endif
 #endif
 /** @} */
 
@@ -88,8 +106,21 @@ typedef unsigned int uart_t;
  * @brief   Default UART device access macro
  * @{
  */
+#ifdef MIXED_PERIPHERALS
+/* having this static inline instead of preprocessor is required to make it
+ * usable as an argument (structs can't be created there), but again makes it
+ * unusable for module-scoped initializers :-( */
+static inline uart_t UART_DEV(int devnr) { uart_t result = { .cls = class_efm32, .arg.efm32 = devnr}; return result; }
+static inline uart_t UART_PIPE(pipe_t *outpipe, int in) { uart_t result = { .cls = class_pipe, .arg.pipe.out = outpipe, .arg.pipe.in = in}; return result; }
+/* see semihosted_uart_t comment on why we have both slot and initialization parameters in here */
+static inline uart_t UART_SEMIHOSTED(int slot, const char *infile, const char *outfile) { uart_t result = { .cls = class_semihosted, .arg.semihosted.slot = slot, .arg.semihosted.infile = infile, .arg.semihosted.outfile = outfile}; return result; }
+#ifdef UART_DEV
+#error "CPUs must not override UART_DEV when MIXED_PERIPHERALS is defined."
+#endif
+#else
 #ifndef UART_DEV
 #define UART_DEV(x)         (x)
+#endif
 #endif
 /** @} */
 
