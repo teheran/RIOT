@@ -527,6 +527,10 @@ ifneq (,$(filter arduino,$(USEMODULE)))
     USEMODULE += xtimer
 endif
 
+ifneq (,$(filter semihosted_uart,$(USEMODULE)))
+    USEMODULE += xtimer
+endif
+
 ifneq (,$(filter xtimer,$(USEMODULE)))
     FEATURES_REQUIRED += periph_timer
 endif

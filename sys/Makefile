@@ -92,6 +92,9 @@ endif
 ifneq (,$(filter sema,$(USEMODULE)))
     DIRS += sema
 endif
+ifneq (,$(filter semihosted_uart,$(USEMODULE)))
+    DIRS += semihosted_uart
+endif
 
 DIRS += $(dir $(wildcard $(addsuffix /Makefile, ${USEMODULE})))
 
