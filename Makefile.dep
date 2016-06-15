@@ -527,6 +527,11 @@ ifneq (,$(filter arduino,$(USEMODULE)))
     USEMODULE += xtimer
 endif
 
+ifneq (,$(filter pipe_uart,$(USEMODULE)))
+    USEMODULE += pipe
+    USEMODULE += xtimer
+endif
+
 ifneq (,$(filter semihosted_uart,$(USEMODULE)))
     USEMODULE += xtimer
 endif
