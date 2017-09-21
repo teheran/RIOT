@@ -9,7 +9,8 @@
  */
 
 /**
- * @ingroup     driver_periph
+ * @ingroup     cpu_saml21
+ * @ingroup     drivers_periph_gpio
  * @{
  *
  * @file        gpio.c
@@ -45,7 +46,7 @@
 static const int8_t exti_config[2][32] = {
     { 0,  1,  2,  3,  4,  5,  6,  7, -1,  9, 10, 11, 12, 13, 14, 15,
       0,  1,  2,  3,  4,  5,  6,  7, 12, 13, -1, 15, -1, -1, 10, 11},
-    {-1,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
       0,  1, -1, -1, -1, -1,  6,  7, -1, -1, -1, -1, -1, -1, 14, 15},
 };
 
@@ -137,6 +138,9 @@ int gpio_init_int(gpio_t pin, gpio_mode_t mode, gpio_flank_t flank,
     /* enable clocks for the EIC module */
     MCLK->APBAMASK.reg |= MCLK_APBAMASK_EIC;
     GCLK->PCHCTRL[EIC_GCLK_ID].reg = GCLK_PCHCTRL_CHEN | GCLK_PCHCTRL_GEN_GCLK0;
+    /* disable the EIC module*/
+    EIC->CTRLA.reg = 0;
+    while (EIC->SYNCBUSY.reg & EIC_SYNCBUSY_ENABLE) {}
     /* configure the active flank */
     EIC->CONFIG[exti >> 3].reg &= ~(0xf << ((exti & 0x7) * 4));
     EIC->CONFIG[exti >> 3].reg |=  (flank << ((exti & 0x7) * 4));

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Simon Brummer
+ * Copyright (C) 2015-2017 Simon Brummer
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -9,34 +9,29 @@
 /**
  * @defgroup    net_gnrc_tcp TCP
  * @ingroup     net_gnrc
- * @brief       RIOT's tcp implementation for the gnrc stack
+ * @brief       RIOT's TCP implementation for the GNRC network stack.
  *
  * @{
  *
  * @file
- * @brief      Definition for gnrc tcp event processing loop
+ * @brief       TCP event loop delarations.
  *
- * @author     Simon Brummer <brummer.simon@googlemail.com>
+* @author       Simon Brummer <simon.brummer@posteo.de>
  */
 
-#ifndef GNRC_TCP_INTERNAL_EVENTLOOP_H_
-#define GNRC_TCP_INTERNAL_EVENTLOOP_H_
+#ifndef EVENTLOOP_H
+#define EVENTLOOP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief PID of tcp event handling thread
- */
-extern kernel_pid_t _gnrc_tcp_pid;
-
-/**
- * @brief TCP's mein processing thread.
+ * @brief GNRC TCPs main processing thread.
  *
- * @param[in] arg   arguments, unused
+ * @param[in] arg   Thread arguments (unused).
  *
- * @return   Never returns, its an endless loop
+ * @returns   Never, its an endless loop
  */
 void *_event_loop(__attribute__((unused)) void *arg);
 
@@ -44,5 +39,5 @@ void *_event_loop(__attribute__((unused)) void *arg);
 }
 #endif
 
-#endif /* GNRC_TCP_INTERNAL_EVENTLOOP_H_ */
+#endif /* EVENTLOOP_H */
 /** @} */

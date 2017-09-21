@@ -26,30 +26,38 @@ extern "C" {
 #endif
 
 /**
- * @name Clock system configuration
+ * @name    Clock settings
+ *
+ * @note    This is auto-generated from
+ *          `cpu/stm32_common/dist/clk_conf/clk_conf.c`
  * @{
  */
-#define CLOCK_HSE           (8000000U)          /* external oscillator */
-#define CLOCK_CORECLOCK     (84000000U)         /* desired core clock frequency */
-
-/* the actual PLL values are automatically generated */
-#define CLOCK_PLL_M         (CLOCK_HSE / 1000000)
-#define CLOCK_PLL_N         ((CLOCK_CORECLOCK / 1000000) * 2)
-#define CLOCK_PLL_P         (2U)
-#define CLOCK_PLL_Q         (CLOCK_PLL_N / 48)
+/* give the target core clock (HCLK) frequency [in Hz],
+ * maximum: 84MHz */
+#define CLOCK_CORECLOCK     (84000000U)
+/* 0: no external high speed crystal available
+ * else: actual crystal frequency [in Hz] */
+#define CLOCK_HSE           (8000000U)
+/* 0: no external low speed crystal available,
+ * 1: external crystal available (always 32.768kHz) */
+#define CLOCK_LSE           (1)
+/* peripheral clock setup */
 #define CLOCK_AHB_DIV       RCC_CFGR_HPRE_DIV1
-#define CLOCK_APB1_DIV      RCC_CFGR_PPRE1_DIV2
-#define CLOCK_APB2_DIV      RCC_CFGR_PPRE2_DIV1
-#define CLOCK_FLASH_LATENCY FLASH_ACR_LATENCY_5WS
-
-/* bus clocks for simplified peripheral initialization, UPDATE MANUALLY! */
 #define CLOCK_AHB           (CLOCK_CORECLOCK / 1)
+#define CLOCK_APB1_DIV      RCC_CFGR_PPRE1_DIV2     /* max 42MHz */
 #define CLOCK_APB1          (CLOCK_CORECLOCK / 2)
+#define CLOCK_APB2_DIV      RCC_CFGR_PPRE2_DIV1     /* max 84MHz */
 #define CLOCK_APB2          (CLOCK_CORECLOCK / 1)
+
+/* Main PLL factors */
+#define CLOCK_PLL_M          (4)
+#define CLOCK_PLL_N          (168)
+#define CLOCK_PLL_P          (4)
+#define CLOCK_PLL_Q          (7)
 /** @} */
 
 /**
- * @brief   Timer configuration
+ * @name   Timer configuration
  * @{
  */
 static const timer_conf_t timer_config[] = {
@@ -68,7 +76,7 @@ static const timer_conf_t timer_config[] = {
 /** @} */
 
 /**
- * @brief   UART configuration
+ * @name   UART configuration
  * @{
  */
 static const uart_conf_t uart_config[] = {
@@ -111,7 +119,7 @@ static const uart_conf_t uart_config[] = {
 /** @} */
 
 /**
- * @brief   PWM configuration
+ * @name    PWM configuration
  * @{
  */
 static const pwm_conf_t pwm_config[] = {
@@ -141,33 +149,63 @@ static const pwm_conf_t pwm_config[] = {
 /** @} */
 
 /**
- * @name SPI configuration
+ * @name   SPI configuration
+ *
+ * @note    The spi_divtable is auto-generated from
+ *          `cpu/stm32_common/dist/spi_divtable/spi_divtable.c`
  * @{
  */
-#define SPI_NUMOF           (1U)
-#define SPI_0_EN            1
-#define SPI_IRQ_PRIO        1
+static const uint8_t spi_divtable[2][5] = {
+    {       /* for APB1 @ 42000000Hz */
+        7,  /* -> 164062Hz */
+        6,  /* -> 328125Hz */
+        4,  /* -> 1312500Hz */
+        2,  /* -> 5250000Hz */
+        1   /* -> 10500000Hz */
+    },
+    {       /* for APB2 @ 84000000Hz */
+        7,  /* -> 328125Hz */
+        7,  /* -> 328125Hz */
+        5,  /* -> 1312500Hz */
+        3,  /* -> 5250000Hz */
+        2   /* -> 10500000Hz */
+    }
+};
 
-/* SPI 0 device config */
-#define SPI_0_DEV               SPI1
-#define SPI_0_CLKEN()           (periph_clk_en(APB2, RCC_APB2ENR_SPI1EN))
-#define SPI_0_CLKDIS()          (periph_clk_dis(APB2, RCC_APB2ENR_SPI1EN))
-#define SPI_0_BUS_DIV           1   /* 1 -> SPI bus runs with half CPU clock, 0 -> quarter CPU clock */
-#define SPI_0_IRQ               SPI1_IRQn
-#define SPI_0_IRQ_HANDLER       isr_spi1
-/* SPI 0 pin configuration */
-#define SPI_0_SCK_PORT          GPIOA       /* A5 pin is shared with the green LED. */
-#define SPI_0_SCK_PIN           5
-#define SPI_0_SCK_AF            5
-#define SPI_0_SCK_PORT_CLKEN()  (periph_clk_en(AHB1, RCC_AHB1ENR_GPIOAEN))
-#define SPI_0_MISO_PORT         GPIOA
-#define SPI_0_MISO_PIN          6
-#define SPI_0_MISO_AF           5
-#define SPI_0_MISO_PORT_CLKEN() (periph_clk_en(AHB1, RCC_AHB1ENR_GPIOAEN))
-#define SPI_0_MOSI_PORT         GPIOA
-#define SPI_0_MOSI_PIN          7
-#define SPI_0_MOSI_AF           5
-#define SPI_0_MOSI_PORT_CLKEN() (periph_clk_en(AHB1, RCC_AHB1ENR_GPIOAEN))
+static const spi_conf_t spi_config[] = {
+    {
+        .dev      = SPI1,
+        .mosi_pin = GPIO_PIN(PORT_A, 7),
+        .miso_pin = GPIO_PIN(PORT_A, 6),
+        .sclk_pin = GPIO_PIN(PORT_A, 5),
+        .cs_pin   = GPIO_PIN(PORT_A, 4),
+        .af       = GPIO_AF5,
+        .rccmask  = RCC_APB2ENR_SPI1EN,
+        .apbbus   = APB2
+    },
+    {
+        .dev      = SPI2,
+        .mosi_pin = GPIO_PIN(PORT_B, 15),
+        .miso_pin = GPIO_PIN(PORT_B, 14),
+        .sclk_pin = GPIO_PIN(PORT_B, 13),
+        .cs_pin   = GPIO_PIN(PORT_B, 12),
+        .af       = GPIO_AF5,
+        .rccmask  = RCC_APB1ENR_SPI2EN,
+        .apbbus   = APB1
+    },
+    {
+        .dev      = SPI3,
+        .mosi_pin = GPIO_PIN(PORT_C, 12),
+        .miso_pin = GPIO_PIN(PORT_C, 11),
+        .sclk_pin = GPIO_PIN(PORT_C, 10),
+        .cs_pin   = GPIO_UNDEF,
+        .af       = GPIO_AF6,
+        .rccmask  = RCC_APB1ENR_SPI3EN,
+        .apbbus   = APB1
+    }
+};
+
+#define SPI_NUMOF           (sizeof(spi_config) / sizeof(spi_config[0]))
 /** @} */
 
 
@@ -178,7 +216,7 @@ static const pwm_conf_t pwm_config[] = {
 #define I2C_NUMOF           (1U)
 #define I2C_0_EN            1
 #define I2C_IRQ_PRIO        1
-#define I2C_APBCLK          (42000000U)
+#define I2C_APBCLK          (CLOCK_APB1)
 
 /* I2C 0 device configuration */
 #define I2C_0_DEV           I2C1
@@ -200,17 +238,31 @@ static const pwm_conf_t pwm_config[] = {
 /** @} */
 
 /**
- * @brief   ADC configuration
+ * @name   ADC configuration
+ *
+ * Note that we do not configure all ADC channels,
+ * and not in the STM32F401 order.  Instead, we
+ * just define 6 ADC channels, for the Nucleo
+ * Arduino header pins A0-A5
+ *
  * @{
  */
-#define ADC_NUMOF          (0)
+#define ADC_NUMOF          (6U)
+#define ADC_CONFIG {             \
+    {GPIO_PIN(PORT_A, 0), 0, 0}, \
+    {GPIO_PIN(PORT_A, 1), 0, 1}, \
+    {GPIO_PIN(PORT_A, 4), 0, 4}, \
+    {GPIO_PIN(PORT_B, 0), 0, 8}, \
+    {GPIO_PIN(PORT_C, 1), 0, 11}, \
+    {GPIO_PIN(PORT_C, 0), 0, 10}, \
+}
 /** @} */
 
 /**
- * @brief   DAC configuration
+ * @name   RTC configuration
  * @{
  */
-#define DAC_NUMOF           (0)
+#define RTC_NUMOF           (1)
 /** @} */
 
 #ifdef __cplusplus

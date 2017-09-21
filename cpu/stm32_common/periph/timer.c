@@ -7,7 +7,8 @@
  */
 
 /**
- * @ingroup     cpu_stm32_common
+ * @ingroup     cpu_cortexm_common
+ * @ingroup     drivers_periph_timer
  * @{
  *
  * @file
@@ -21,6 +22,28 @@
 
 #include "cpu.h"
 #include "periph/timer.h"
+
+/**
+ * @brief   Timer specific additional bus clock presacler
+ *
+ * This prescale factor is dependent on the actual APBx bus clock divider, if
+ * the APBx presacler is != 1, it is set to 2, if the APBx prescaler is == 1, it
+ * is set to 1.
+ *
+ * See reference manuals section 'reset and clock control'.
+ */
+static const uint8_t apbmul[] = {
+#if (CLOCK_APB1 < CLOCK_CORECLOCK)
+    [APB1] = 2,
+#else
+    [APB1] = 1,
+#endif
+#if (CLOCK_APB2 < CLOCK_CORECLOCK)
+    [APB2] = 2
+#else
+    [APB2] = 1
+#endif
+};
 
 /**
  * @brief   Interrupt context for each configured timer
@@ -53,15 +76,10 @@ int timer_init(tim_t tim, unsigned long freq, timer_cb_t cb, void *arg)
     dev(tim)->CR1  = 0;
     dev(tim)->CR2  = 0;
     dev(tim)->ARR  = timer_config[tim].max;
-    /* set prescaler: the STM32F1 and STM32F2 introduce a clock multiplier of 2
-     * in the case the APB1 prescaler is != 1, so we need to catch this
-     * -> see reference manual section 7.2.1 and section 5.2, respectively */
-#if (defined(CPU_FAM_STM32F1) || defined(CPU_FAM_STM32F2)) \
-    && (CLOCK_APB1 < CLOCK_CORECLOCK)
-    dev(tim)->PSC = (((periph_apb_clk(timer_config[tim].bus) * 2) / freq) - 1);
-#else
-    dev(tim)->PSC = ((periph_apb_clk(timer_config[tim].bus) / freq) - 1);
-#endif
+
+    /* set prescaler */
+    dev(tim)->PSC = (((periph_apb_clk(timer_config[tim].bus) *
+                       apbmul[timer_config[tim].bus]) / freq) - 1);
     /* generate an update event to apply our configuration */
     dev(tim)->EGR = TIM_EGR_UG;
 
@@ -71,12 +89,6 @@ int timer_init(tim_t tim, unsigned long freq, timer_cb_t cb, void *arg)
     timer_start(tim);
 
     return 0;
-}
-
-int timer_set(tim_t tim, int channel, unsigned int timeout)
-{
-    int now = timer_read(tim);
-    return timer_set_absolute(tim, channel, now + timeout);
 }
 
 int timer_set_absolute(tim_t tim, int channel, unsigned int value)

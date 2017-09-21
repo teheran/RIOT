@@ -22,7 +22,7 @@
 
 #include "log.h"
 #include "saul_reg.h"
-
+#include "bmp180.h"
 #include "bmp180_params.h"
 
 /**
@@ -54,20 +54,19 @@ void auto_init_bmp180(void)
         LOG_DEBUG("[auto_init_saul] initializing bmp180 #%u\n", i);
 
         if (bmp180_init(&bmp180_devs[i],
-                        bmp180_params[i].i2c_dev,
-                        bmp180_params[i].mode) < 0) {
+                        &bmp180_params[i]) != BMP180_OK) {
             LOG_ERROR("[auto_init_saul] error initializing bmp180 #%u\n", i);
-            return;
+            continue;
         }
 
         /* temperature */
         saul_entries[(i * 2)].dev = &(bmp180_devs[i]);
-        saul_entries[(i * 2)].name = bmp180_saul_reg_info[i][0].name;
+        saul_entries[(i * 2)].name = bmp180_saul_reg_info[i].name;
         saul_entries[(i * 2)].driver = &bmp180_temperature_saul_driver;
 
         /* atmospheric pressure */
         saul_entries[(i * 2) + 1].dev = &(bmp180_devs[i]);
-        saul_entries[(i * 2) + 1].name = bmp180_saul_reg_info[i][1].name;
+        saul_entries[(i * 2) + 1].name = bmp180_saul_reg_info[i].name;
         saul_entries[(i * 2) + 1].driver = &bmp180_pressure_saul_driver;
 
         /* register to saul */

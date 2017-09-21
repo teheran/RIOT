@@ -8,7 +8,7 @@
 
 /**
  * @defgroup    boards_nucleo32-f042 Nucleo-F042
- * @ingroup     boards
+ * @ingroup     boards_nucleo
  * @brief       Board specific files for the nucleo32-f042 board
  * @{
  *
@@ -21,22 +21,11 @@
 #ifndef BOARD_H
 #define BOARD_H
 
+#include "board_common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define LED0_PIN            GPIO_PIN(PORT_B, 3)
-
-#define LED0_MASK           (1 << 3)
-
-#define LED0_ON             (GPIOB->BSRR     = LED0_MASK)
-#define LED0_OFF            (GPIOB->BRR      = LED0_MASK)
-#define LED0_TOGGLE         (GPIOB->ODR     ^= LED0_MASK)
-
-/**
- * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
- */
-void board_init(void);
 
 #ifdef __cplusplus
 }

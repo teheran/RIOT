@@ -63,10 +63,13 @@
  * Usage
  * -----
  * ~~~~~~~~~~~~~~~~~~~~~~~~ {.c}
+ * #include "thread.h"
+ *
  * char rcv_thread_stack[THREAD_STACKSIZE_MAIN];
  *
  * void *rcv_thread(void *arg)
  * {
+ *     (void) arg;
  *     msg_t m;
  *
  *     while (1) {
@@ -131,14 +134,16 @@
  extern "C" {
 #endif
 
+/* Thread states */
 /**
- * @brief Thread status list
+ * @name Special meaning thread states
  * @{
  */
-#define STATUS_NOT_FOUND        (-1)            /**< Describes an illegal thread status */
+#define STATUS_NOT_FOUND        (-1)    /**< Describes an illegal thread status */
+/** @} */
 
 /**
- * @brief Blocked states.
+ * @name Blocked thread states
  * @{
  */
 #define STATUS_STOPPED              0   /**< has terminated                     */
@@ -153,13 +158,13 @@
 /** @} */
 
 /**
- * @brief These have to be on a run queue.
- * @{*/
+ * @name Queued thread states
+ * @{
+ */
 #define STATUS_ON_RUNQUEUE      STATUS_RUNNING  /**< to check if on run queue:
                                                  `st >= STATUS_ON_RUNQUEUE`             */
 #define STATUS_RUNNING          9               /**< currently running                  */
 #define STATUS_PENDING         10               /**< waiting to be scheduled to run     */
-/** @} */
 /** @} */
 
 /**

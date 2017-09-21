@@ -7,16 +7,7 @@ BOARD ?= native
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
-BOARD_INSUFFICIENT_MEMORY := chronos msb-430 msb-430h
-
-## Uncomment to support the XBee module
-#USEMODULE += xbee
-
-## set default UART to use in case none was defined
-#XBEE_UART ?= "1"
-
-## export UART to params file
-#CFLAGS += -DXBEE_UART=$(XBEE_UART)
+BOARD_INSUFFICIENT_MEMORY := chronos msb-430 msb-430h nucleo32-f031
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the

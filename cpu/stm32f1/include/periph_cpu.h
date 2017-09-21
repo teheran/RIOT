@@ -31,11 +31,14 @@ extern "C" {
 #define ADC_DEVS            (2U)
 
 /**
- * @brief declare needed generic SPI functions
- * @{
+ * @brief   All timers for the STM32F1 have 4 CC channels
  */
-#undef PERIPH_SPI_NEEDS_TRANSFER_BYTES
-#define PERIPH_SPI_NEEDS_TRANSFER_BYTE
+#define TIMER_CHANNELS      (4U)
+
+/**
+ * @brief   All timers have a width of 16-bit
+ */
+#define TIMER_MAXVAL        (0xffff)
 
 /**
  * @brief   Generate GPIO mode bitfields
@@ -47,6 +50,17 @@ extern "C" {
  * - bit 2: OD enable
  */
 #define GPIO_MODE(mode, cnf, odr)       (mode | (cnf << 2) | (odr << 4))
+
+/**
+ * @brief   Define the number of available PM modes
+ */
+#define PM_NUM_MODES    (2U)
+
+/**
+ * @brief   Override the default initial PM blocker
+ * @todo   we block all modes per default, until PM is cleanly implemented
+ */
+#define PM_BLOCKER_INITIAL  { .val_u32 = 0x01010101 }
 
 #ifndef DOXYGEN
 /**
@@ -114,16 +128,6 @@ typedef struct {
     uint8_t dev;            /**< ADCx - 1 device used for the channel */
     uint8_t chan;           /**< CPU ADC channel connected to the pin */
 } adc_conf_t;
-
-/**
- * @brief   DAC line configuration data
- */
-typedef struct {
-    gpio_t pin;             /**< pin connected to the line */
-    uint8_t chan;           /**< DAC device used for this line */
-} dac_conf_t;
-
-#define PM_NUM_MODES    (2U)
 
 #ifdef __cplusplus
 }

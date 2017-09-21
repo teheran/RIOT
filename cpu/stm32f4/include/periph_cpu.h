@@ -26,22 +26,28 @@ extern "C" {
 #endif
 
 /**
- * @brief   Available number of ADC devices
+ * @brief   Available ports on the STM32F4 family
  */
-#if defined(CPU_MODEL_STM32F401RE)
-#define ADC_DEVS            (1U)
-#elif defined(CPU_MODEL_STM32F407VG) || defined(CPU_MODEL_STM32F415RG) || defined(CPU_MODEL_STM32F446RE)
-#define ADC_DEVS            (3U)
-#endif
+enum {
+    PORT_A = 0,             /**< port A */
+    PORT_B = 1,             /**< port B */
+    PORT_C = 2,             /**< port C */
+    PORT_D = 3,             /**< port D */
+    PORT_E = 4,             /**< port E */
+    PORT_F = 5,             /**< port F */
+    PORT_G = 6,             /**< port G */
+    PORT_H = 7,             /**< port H */
+    PORT_I = 8              /**< port I */
+};
 
 /**
- * @brief declare needed generic SPI functions
- * @{
+ * @brief   Available number of ADC devices
  */
-#define PERIPH_SPI_NEEDS_TRANSFER_BYTES
-#define PERIPH_SPI_NEEDS_TRANSFER_REG
-#define PERIPH_SPI_NEEDS_TRANSFER_REGS
-/** @} */
+#if defined(CPU_MODEL_STM32F401RE) || defined(CPU_MODEL_STM32F410RB) || defined(CPU_MODEL_STM32F411RE)|| defined(CPU_MODEL_STM32F413ZH)
+#define ADC_DEVS            (1U)
+#elif defined(CPU_MODEL_STM32F407VG) || defined(CPU_MODEL_STM32F415RG) || defined(CPU_MODEL_STM32F446RE) || defined(CPU_MODEL_STM32F429ZI)
+#define ADC_DEVS            (3U)
+#endif
 
 #ifndef DOXYGEN
 /**
@@ -61,48 +67,6 @@ typedef enum {
 #endif /* ndef DOXYGEN */
 
 /**
- * @brief   Generate GPIO mode bitfields
- *
- * We use 5 bit to encode the mode:
- * - bit 0+1: pin mode (input / output)
- * - bit 2+3: pull resistor configuration
- * - bit   4: output type (0: push-pull, 1: open-drain)
- */
-#define GPIO_MODE(io, pr, ot)   ((io << 0) | (pr << 2) | (ot << 4))
-
-#ifndef DOXYGEN
-/**
- * @brief   Override GPIO mode options
- * @{
- */
-#define HAVE_GPIO_MODE_T
-typedef enum {
-    GPIO_IN    = GPIO_MODE(0, 0, 0),    /**< input w/o pull R */
-    GPIO_IN_PD = GPIO_MODE(0, 2, 0),    /**< input with pull-down */
-    GPIO_IN_PU = GPIO_MODE(0, 1, 0),    /**< input with pull-up */
-    GPIO_OUT   = GPIO_MODE(1, 0, 0),    /**< push-pull output */
-    GPIO_OD    = GPIO_MODE(1, 0, 1),    /**< open-drain w/o pull R */
-    GPIO_OD_PU = GPIO_MODE(1, 1, 1)     /**< open-drain with pull-up */
-} gpio_mode_t;
-/** @} */
-#endif /* ndef DOXYGEN */
-
-/**
- * @brief   Available ports on the STM32F4 family
- */
-enum {
-    PORT_A = 0,             /**< port A */
-    PORT_B = 1,             /**< port B */
-    PORT_C = 2,             /**< port C */
-    PORT_D = 3,             /**< port D */
-    PORT_E = 4,             /**< port E */
-    PORT_F = 5,             /**< port F */
-    PORT_G = 6,             /**< port G */
-    PORT_H = 7,             /**< port H */
-    PORT_I = 8              /**< port I */
-};
-
-/**
  * @brief   ADC channel configuration data
  */
 typedef struct {
@@ -110,14 +74,6 @@ typedef struct {
     uint8_t dev;            /**< ADCx - 1 device used for the channel */
     uint8_t chan;           /**< CPU ADC channel connected to the pin */
 } adc_conf_t;
-
-/**
- * @brief   DAC line configuration data
- */
-typedef struct {
-    gpio_t pin;             /**< pin connected to the line */
-    uint8_t chan;           /**< DAC device used for this line */
-} dac_conf_t;
 
 /**
  * @brief   Power on the DMA device the given stream belongs to

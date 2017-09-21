@@ -29,22 +29,20 @@ extern "C" {
 #endif
 
 /**
- * @brief   Address of the info memory
+ * @brief    Address of the info memory
  */
 #define INFOMEM     (0x1000)
 
 /**
- * @brief   Xtimer configuration
+ * @name    Xtimer configuration
  * @{
  */
-#define XTIMER_DEV                  (0)
-#define XTIMER_CHAN                 (0)
 #define XTIMER_WIDTH                (16)
 #define XTIMER_BACKOFF              (40)
 /** @} */
 
 /**
- * @brief   LED pin definitions and handlers
+ * @name    LED pin definitions and handlers
  * @{
  */
 #define LED0_PIN                    GPIO_PIN(4, 4)

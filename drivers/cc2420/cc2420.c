@@ -20,7 +20,7 @@
  * @}
  */
 
-#include "uuid.h"
+#include "luid.h"
 #include "byteorder.h"
 #include "net/ieee802154.h"
 #include "net/gnrc.h"
@@ -42,7 +42,6 @@ void cc2420_setup(cc2420_t * dev, const cc2420_params_t *params)
     dev->state = CC2420_STATE_IDLE;
     /* reset device descriptor fields */
     dev->options = 0;
-    spi_init_master(dev->params.spi, SPI_CONF_FIRST_RISING, dev->params.spi_clk);
 }
 
 int cc2420_init(cc2420_t *dev)
@@ -55,7 +54,7 @@ int cc2420_init(cc2420_t *dev)
     dev->netdev.flags = 0;
 
     /* set default address, channel, PAN ID, and TX power */
-    uuid_get(addr, sizeof(addr));
+    luid_get(addr, sizeof(addr));
     /* make sure we mark the address as non-multicast and not globally unique */
     addr[0] &= ~(0x01);
     addr[0] |= 0x02;
@@ -161,7 +160,7 @@ void cc2420_tx_exec(cc2420_t *dev)
     /* trigger the transmission */
     if (dev->options & CC2420_OPT_TELL_TX_START) {
         dev->netdev.netdev.event_callback(&dev->netdev.netdev,
-                                          NETDEV2_EVENT_TX_STARTED);
+                                          NETDEV_EVENT_TX_STARTED);
     }
     DEBUG("cc2420: tx_exec: TX_START\n");
     if (dev->options & CC2420_OPT_CSMA) {

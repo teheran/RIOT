@@ -1,5 +1,3 @@
-DIRS += $(AUTO_INIT_MODULES)
-
 ifneq (,$(filter auto_init_gnrc_netif,$(USEMODULE)))
 DIRS += netif
 endif
@@ -10,6 +8,10 @@ endif
 
 ifneq (,$(filter auto_init_storage,$(USEMODULE)))
 DIRS += storage
+endif
+
+ifneq (,$(filter auto_init_can,$(USEMODULE)))
+DIRS += can
 endif
 
 include $(RIOTBASE)/Makefile.base

@@ -1,12 +1,3 @@
-ifneq (,$(filter gnrc_conn,$(USEMODULE)))
-    DIRS += conn
-endif
-ifneq (,$(filter gnrc_conn_ip,$(USEMODULE)))
-    DIRS += conn/ip
-endif
-ifneq (,$(filter gnrc_conn_udp,$(USEMODULE)))
-    DIRS += conn/udp
-endif
 ifneq (,$(filter gnrc_icmpv6,$(USEMODULE)))
     DIRS += network_layer/icmpv6
 endif
@@ -30,6 +21,9 @@ ifneq (,$(filter gnrc_ipv6_nc,$(USEMODULE)))
 endif
 ifneq (,$(filter gnrc_ipv6_netif,$(USEMODULE)))
     DIRS += network_layer/ipv6/netif
+endif
+ifneq (,$(filter gnrc_ipv6_nib,$(USEMODULE)))
+    DIRS += network_layer/ipv6/nib
 endif
 ifneq (,$(filter gnrc_ipv6_whitelist,$(USEMODULE)))
     DIRS += network_layer/ipv6/whitelist
@@ -67,17 +61,20 @@ endif
 ifneq (,$(filter gnrc_nettest,$(USEMODULE)))
     DIRS += nettest
 endif
-ifneq (,$(filter gnrc_nomac,$(USEMODULE)))
-    DIRS += link_layer/nomac
-endif
 ifneq (,$(filter gnrc_mac,$(USEMODULE)))
     DIRS += link_layer/gnrc_mac
 endif
 ifneq (,$(filter gnrc_pkt,$(USEMODULE)))
     DIRS += pkt
 endif
+ifneq (,$(filter gnrc_lwmac,$(USEMODULE)))
+    DIRS += link_layer/lwmac
+endif
 ifneq (,$(filter gnrc_pktbuf_static,$(USEMODULE)))
     DIRS += pktbuf_static
+endif
+ifneq (,$(filter gnrc_pktbuf,$(USEMODULE)))
+    DIRS += pktbuf
 endif
 ifneq (,$(filter gnrc_priority_pktqueue,$(USEMODULE)))
     DIRS += priority_pktqueue
@@ -132,9 +129,6 @@ ifneq (,$(filter gnrc_udp,$(USEMODULE)))
 endif
 ifneq (,$(filter gnrc_tcp,$(USEMODULE)))
     DIRS += transport_layer/tcp
-endif
-ifneq (,$(filter gnrc_zep,$(USEMODULE)))
-    DIRS += application_layer/zep
 endif
 ifneq (,$(filter gnrc_tftp,$(USEMODULE)))
     DIRS += application_layer/tftp

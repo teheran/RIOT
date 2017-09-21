@@ -9,6 +9,7 @@
 
 /**
  * @ingroup     cpu_cortexm_common
+ * @ingroup     drivers_periph_pm
  * @{
  *
  * @file
@@ -23,7 +24,7 @@
 #include "cpu.h"
 #include "periph/pm.h"
 
-#ifndef FEATURES_PERIPH_PM
+#ifndef FEATURE_PERIPH_PM
 void pm_set_lowest(void)
 {
     cortexm_sleep(0);

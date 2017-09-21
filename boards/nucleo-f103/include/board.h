@@ -8,7 +8,7 @@
 
 /**
  * @defgroup    boards_nucleo-f103 Nucleo-F103
- * @ingroup     boards
+ * @ingroup     boards_nucleo
  * @brief       Board specific files for the nucleo-f103 board
  * @{
  *
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 /**
- * @name xtimer configuration
+ * @name    xtimer configuration
  */
 #define XTIMER_WIDTH        (16)
 #define XTIMER_BACKOFF      5

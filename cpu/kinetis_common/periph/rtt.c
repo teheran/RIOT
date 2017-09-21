@@ -8,7 +8,8 @@
  */
 
 /**
- * @ingroup     cpu_kinetis_common_rtt
+ * @ingroup     cpu_kinetis_common
+ * @ingroup     drivers_periph_rtt
  *
  * @{
  *
@@ -57,6 +58,8 @@ void rtt_init(void)
     RTT_UNLOCK();
     /* Reset RTC */
     rtt->CR = RTC_CR_SWR_MASK;
+    /* cppcheck-suppress redundantAssignment
+     * reset routine */
     rtt->CR = 0;
 
     if (rtt->SR & RTC_SR_TIF_MASK) {

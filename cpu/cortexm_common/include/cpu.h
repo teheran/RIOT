@@ -42,15 +42,6 @@ extern "C" {
 #endif
 
 /**
- * @brief   Some members of the Cortex-M family have architecture specific
- *          atomic operations in atomic_arch.c
- */
-#if defined(CPU_ARCH_CORTEX_M3) || defined(CPU_ARCH_CORTEX_M4) || \
-    defined(CPU_ARCH_CORTEX_M4F)
-#define ARCH_HAS_ATOMIC_COMPARE_AND_SWAP 1
-#endif
-
-/**
  * @brief Interrupt stack canary value
  *
  * @note 0xe7fe is the ARM Thumb machine code equivalent of asm("bl #-2\n") or
@@ -85,7 +76,7 @@ static inline void cpu_print_last_instruction(void)
  * This function is meant to be used for short periods of time, where it is not
  * feasible to switch to the idle thread and back.
  */
-static inline void cpu_sleep_until_event(void)
+static inline void cortexm_sleep_until_event(void)
 {
     __WFE();
 }
@@ -105,8 +96,10 @@ static inline void cortexm_sleep(int deep)
     }
 
     /* ensure that all memory accesses have completed and trigger sleeping */
+    __disable_irq();
     __DSB();
     __WFI();
+    __enable_irq();
 }
 
 /**

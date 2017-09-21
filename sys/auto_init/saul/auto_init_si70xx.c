@@ -22,9 +22,8 @@
 
 #include "log.h"
 #include "saul_reg.h"
-
-#include "si70xx_params.h"
 #include "si70xx.h"
+#include "si70xx_params.h"
 
 /**
  * @brief   Define the number of configured sensors
@@ -59,17 +58,17 @@ void auto_init_si70xx(void)
                               si70xx_params[i].address);
         if (res < 0) {
             LOG_ERROR("[auto_init_saul] error initializing SI70xx #%i\n", i);
-            return;
+            continue;
         }
 
         /* temperature */
         saul_entries[i * 2].dev = &si70xx_devs[i];
-        saul_entries[i * 2].name = si70xx_saul_reg_info[i][0].name;
+        saul_entries[i * 2].name = si70xx_saul_reg_info[i].name;
         saul_entries[i * 2].driver = &si70xx_temperature_saul_driver;
 
         /* relative humidity */
         saul_entries[(i * 2) + 1].dev = &si70xx_devs[i];
-        saul_entries[(i * 2) + 1].name = si70xx_saul_reg_info[i][1].name;
+        saul_entries[(i * 2) + 1].name = si70xx_saul_reg_info[i].name;
         saul_entries[(i * 2) + 1].driver = \
                 &si70xx_relative_humidity_saul_driver;
 

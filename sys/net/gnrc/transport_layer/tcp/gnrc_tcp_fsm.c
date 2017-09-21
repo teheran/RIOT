@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Simon Brummer
+ * Copyright (C) 2015-2017 Simon Brummer
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -11,22 +11,19 @@
  * @{
  *
  * @file
- * @brief       GNRC's TCP finite state maschine
+ * @brief       Implementation of internal/fsm.h
  *
- * @author      Simon Brummer <brummer.simon@googlemail.com>
+ * @author      Simon Brummer <simon.brummer@posteo.de>
  * @}
  */
 
-#include "msg.h"
 #include "random.h"
-#include "ringbuffer.h"
 #include "net/af.h"
-
-#include "internal/fsm.h"
+#include "internal/common.h"
 #include "internal/pkt.h"
 #include "internal/option.h"
-#include "internal/helper.h"
 #include "internal/rcvbuf.h"
+#include "internal/fsm.h"
 
 #ifdef MODULE_GNRC_IPV6
 #include "net/gnrc/ipv6.h"
@@ -36,30 +33,31 @@
 #include "debug.h"
 
 /**
- * @brief Checks if a given portnumber is currently used by a tcb as local_port.
- *
- * @param[in] portnumber   Portnumber that should be checked
- *
- * @note Must be called from a context where the tcb list ist locked.
- *
- * @return   Zero if @p portnumber is currently not used.
- * @return   1 if @p portnumber is used by an tcb.
+ * @brief Helper macro for LL_SEARCH to compare TCBs
  */
-static int _is_local_port_in_use(const uint16_t portnumber)
+#define TCB_EQUAL(a,b)      ((a) != (b))
+
+/**
+ * @brief Checks if a given port number is currently used by a TCB as local_port.
+ *
+ * @note Must be called from a context where the TCB list is locked.
+ *
+ * @param[in] port_number   Port number that should be checked.
+ *
+ * @returns   Zero if @p port_number is currently not used.
+ *            1 if @p port_number is used by an active connection.
+ */
+static int _is_local_port_in_use(const uint16_t port_number)
 {
     gnrc_tcp_tcb_t *iter = NULL;
-    LL_FOREACH(_list_gnrc_tcp_tcb_head, iter) {
-        if (iter->local_port == portnumber) {
-            return 1;
-        }
-    }
-    return 0;
+    LL_SEARCH_SCALAR(_list_tcb_head, iter, local_port, port_number);
+    return (iter != NULL);
 }
 
 /**
- * @brief Generate random, currently unused local port above the well-known ports (> 1024)
+ * @brief Generate random unused local port above the well-known ports (> 1024).
  *
- * @return The generated port number
+ * @returns   Generated port number.
  */
 static uint16_t _get_random_local_port(void)
 {
@@ -74,11 +72,11 @@ static uint16_t _get_random_local_port(void)
 }
 
 /**
- * @brief clears retransmit queue
+ * @brief Clears retransmit queue.
  *
- * @param[in/out] conn   TCP Connection, where the retransmit should be cleared
+ * @param[in,out] tcb   TCB holding the retransmit queue.
  *
- * @return zero on success
+ * @return   Zero on success.
  */
 static int _clear_retransmit(gnrc_tcp_tcb_t *tcb)
 {
@@ -91,135 +89,111 @@ static int _clear_retransmit(gnrc_tcp_tcb_t *tcb)
 }
 
 /**
- * @brief restarts time wait timer
+ * @brief Restarts timewait timer.
  *
- * @param[in/out] conn TCP Connection, where the timewait_timer should be restarted
+ * @param[in,out] tcb   TCB holding the timer struct to reset.
  *
- * @return Zero on success
+ * @return   Zero on success.
  */
-static int _restart_timewait_timer(gnrc_tcp_tcb_t* tcb)
+static int _restart_timewait_timer(gnrc_tcp_tcb_t *tcb)
 {
     xtimer_remove(&tcb->tim_tout);
     tcb->msg_tout.type = MSG_TYPE_TIMEWAIT;
     tcb->msg_tout.content.ptr = (void *)tcb;
-    xtimer_set_msg(&tcb->tim_tout, 2 * GNRC_TCP_MSL, &tcb->msg_tout, _gnrc_tcp_pid);
+    xtimer_set_msg(&tcb->tim_tout, 2 * GNRC_TCP_MSL, &tcb->msg_tout, gnrc_tcp_pid);
     return 0;
 }
 
 /**
- * @brief translates fsm into another state
+ * @brief Transition from current FSM state into another state.
  *
- * @param[in/out] tcb            tcb, that specifies connection
- * @param[in]     state          state to translate in
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb     TCB holding the FSM state.
+ * @param[in]     state   State to transition in.
  *
- * @return zero on success
+ * @return   Zero on success.
  */
-static int _transition_to(gnrc_tcp_tcb_t* tcb, gnrc_tcp_fsm_state_t state, bool *notify_owner)
+static int _transition_to(gnrc_tcp_tcb_t *tcb, fsm_state_t state)
 {
+    DEBUG("_transition_to: %d\n", state);
+
     gnrc_tcp_tcb_t *iter = NULL;
-    uint8_t found = 0;
 
     switch (state) {
-        case GNRC_TCP_FSM_STATE_CLOSED:
-            /* Free Packets in Retransmit queue */
+        case FSM_STATE_CLOSED:
+            /* Clear retransmit queue */
             _clear_retransmit(tcb);
 
-            /* Remove from Connection from active connections */
-            mutex_lock(&_list_gnrc_tcp_tcb_lock);
-            LL_FOREACH(_list_gnrc_tcp_tcb_head, iter) {
-                if (iter == tcb) {
-                    found = 1;
-                }
-            }
-            if (found) {
-                LL_DELETE(_list_gnrc_tcp_tcb_head, iter);
-            }
-            mutex_unlock(&_list_gnrc_tcp_tcb_lock);
+            /* Remove connection from active connections */
+            mutex_lock(&_list_tcb_lock);
+            LL_DELETE(_list_tcb_head, tcb);
+            mutex_unlock(&_list_tcb_lock);
 
-            /* Free potencially allocated Receive Buffer */
+            /* Free potencially allocated receive buffer */
             _rcvbuf_release_buffer(tcb);
-            *notify_owner = true;
+            tcb->status |= STATUS_NOTIFY_USER;
             break;
 
-        case GNRC_TCP_FSM_STATE_LISTEN:
-            /* Clear Adress Info */
-            switch (tcb->address_family) {
+        case FSM_STATE_LISTEN:
+            /* Clear address info */
 #ifdef MODULE_GNRC_IPV6
-              case AF_INET6:
-                  if (tcb->status & GNRC_TCP_STATUS_ALLOW_ANY_ADDR) {
-                      ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->local_addr);
-                  }
-                  ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->peer_addr);
-                  break;
-#endif
-              default:
-                  DEBUG("gnrc_tcp_fsm.c : _transition_to() : Undefined Addresses\n");
-                  break;
+            if (tcb->address_family == AF_INET6) {
+                if (tcb->status & STATUS_ALLOW_ANY_ADDR) {
+                    ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->local_addr);
+                }
+                ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->peer_addr);
             }
-            tcb->peer_port = GNRC_TCP_PORT_UNSPEC;
+#endif
+            tcb->peer_port = PORT_UNSPEC;
 
-            /* Allocate rcv Buffer */
+            /* Allocate receive buffer */
             if (_rcvbuf_get_buffer(tcb) == -ENOMEM) {
                 return -ENOMEM;
             }
 
-            /* Add to Connection to active connections (if not already active) */
-            mutex_lock(&_list_gnrc_tcp_tcb_lock);
-            LL_FOREACH(_list_gnrc_tcp_tcb_head, iter) {
-                if (iter == tcb) {
-                    found = 1;
-                }
+            /* Add connection to active connections (if not already active) */
+            mutex_lock(&_list_tcb_lock);
+            LL_SEARCH(_list_tcb_head, iter, tcb, TCB_EQUAL);
+            if (iter == NULL) {
+                LL_PREPEND(_list_tcb_head, tcb);
             }
-            if (!found) {
-                LL_APPEND(_list_gnrc_tcp_tcb_head, tcb);
-            }
-            mutex_unlock(&_list_gnrc_tcp_tcb_lock);
+            mutex_unlock(&_list_tcb_lock);
             break;
 
-        case GNRC_TCP_FSM_STATE_SYN_SENT:
-            /* Allocate rcv Buffer */
+        case FSM_STATE_SYN_SENT:
+            /* Allocate rceveive buffer */
             if (_rcvbuf_get_buffer(tcb) == -ENOMEM) {
                 return -ENOMEM;
             }
 
-            /* Add to Connections to active connection (if not already active) */
-            mutex_lock(&_list_gnrc_tcp_tcb_lock);
-            LL_FOREACH(_list_gnrc_tcp_tcb_head, iter) {
-                if (iter == tcb) {
-                    found = 1;
-                }
-            }
-            /* If not already active: Apped tcb but check portnumber first */
-            if (!found) {
-                /* Check if Port Number is not in use */
-                if (tcb->local_port != GNRC_TCP_PORT_UNSPEC ) {
-
-                    /* If Portnumber is used: return error and release buffer */
+            /* Add connection to active connections (if not already active) */
+            mutex_lock(&_list_tcb_lock);
+            LL_SEARCH(_list_tcb_head, iter, tcb, TCB_EQUAL);
+            /* If connection is not already active: Check port number, append TCB */
+            if (iter == NULL) {
+                /* Check if port number was specified */
+                if (tcb->local_port != PORT_UNSPEC) {
+                    /* Check if given port number is use: return error and release buffer */
                     if (_is_local_port_in_use(tcb->local_port)) {
-                        mutex_unlock(&_list_gnrc_tcp_tcb_lock);
+                        mutex_unlock(&_list_tcb_lock);
                         _rcvbuf_release_buffer(tcb);
                         return -EADDRINUSE;
                     }
                 }
-                /* Pick Random Port */
+                /* Pick random port */
                 else {
                     tcb->local_port = _get_random_local_port();
                 }
-                LL_APPEND(_list_gnrc_tcp_tcb_head, tcb);
+                LL_PREPEND(_list_tcb_head, tcb);
             }
-            mutex_unlock(&_list_gnrc_tcp_tcb_lock);
+            mutex_unlock(&_list_tcb_lock);
             break;
 
-        case GNRC_TCP_FSM_STATE_ESTABLISHED:
-            *notify_owner = true;
+        case FSM_STATE_ESTABLISHED:
+        case FSM_STATE_CLOSE_WAIT:
+            tcb->status |= STATUS_NOTIFY_USER;
             break;
 
-        case GNRC_TCP_FSM_STATE_CLOSE_WAIT:
-            *notify_owner = true;
-            break;
-
-        case GNRC_TCP_FSM_STATE_TIME_WAIT:
+        case FSM_STATE_TIME_WAIT:
             _restart_timewait_timer(tcb);
             break;
 
@@ -231,45 +205,44 @@ static int _transition_to(gnrc_tcp_tcb_t* tcb, gnrc_tcp_fsm_state_t state, bool 
 }
 
 /**
- * @brief FSM Handling Function for active and passive open
+ * @brief FSM handling function for opening a TCP connection.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success
- * @return -ENOMEM       Can't allocate receive buffer.
- * @return -EADDRINUSE   Given local port is already in use
+ * @returns   Zero on success.
+ *            -ENOMEM if receive buffer could not be allocated.
+ *            -EADDRINUSE if given local port number is already in use.
  */
-static int _fsm_call_open(gnrc_tcp_tcb_t* tcb, bool *notify_owner)
+static int _fsm_call_open(gnrc_tcp_tcb_t *tcb)
 {
-    gnrc_pktsnip_t *out_pkt = NULL;     /* Outgoing packet */
-    uint16_t seq_con = 0;               /* Sequence number consumption (out_pkt) */
-    int ret = 0;                        /* Return value */
+    int ret = 0;
 
     DEBUG("gnrc_tcp_fsm.c : _fsm_call_open()\n");
     tcb->rcv_wnd = GNRC_TCP_DEFAULT_WINDOW;
 
-    if (tcb->status & GNRC_TCP_STATUS_PASSIVE) {
-        /* Passive Open, T: CLOSED -> LISTEN */
-        if (_transition_to(tcb, GNRC_TCP_FSM_STATE_LISTEN, notify_owner) == -ENOMEM){
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+    if (tcb->status & STATUS_PASSIVE) {
+        /* Passive open, T: CLOSED -> LISTEN */
+        if (_transition_to(tcb, FSM_STATE_LISTEN) == -ENOMEM) {
+            _transition_to(tcb, FSM_STATE_CLOSED);
             return -ENOMEM;
         }
     }
     else {
-        /* Active Open, init tcb values, send SYN, T: CLOSED -> SYN_SENT */
+        /* Active Open, set TCB values, send SYN, T: CLOSED -> SYN_SENT */
         tcb->iss = random_uint32();
         tcb->snd_nxt = tcb->iss;
         tcb->snd_una = tcb->iss;
 
-        /* Translate to SYN_SENT */
-        ret = _transition_to(tcb, GNRC_TCP_FSM_STATE_SYN_SENT, notify_owner);
-        if ( ret < 0) {
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+        /* Transition FSM to SYN_SENT */
+        ret = _transition_to(tcb, FSM_STATE_SYN_SENT);
+        if (ret < 0) {
+            _transition_to(tcb, FSM_STATE_CLOSED);
             return ret;
         }
 
         /* Send SYN */
+        gnrc_pktsnip_t *out_pkt = NULL;
+        uint16_t seq_con = 0;
         _pkt_build(tcb, &out_pkt, &seq_con, MSK_SYN, tcb->iss, 0, NULL, 0);
         _pkt_setup_retransmit(tcb, out_pkt, false);
         _pkt_send(tcb, out_pkt, seq_con, false);
@@ -278,30 +251,30 @@ static int _fsm_call_open(gnrc_tcp_tcb_t* tcb, bool *notify_owner)
 }
 
 /**
- * @brief FSM Handling Function for sending data.
+ * @brief FSM Handling function for sending data.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[in/out] buf            buffer containing data to send.
- * @param[in]     nByte          Maximum Number of Bytes to send.
+ * @param[in,out] tcb   TCB holding the connection information.
+ * @param[in,out] buf   Buffer containing data to send.
+ * @param[in]     len   Maximum Number of Bytes to send from @p buf.
  *
- * @return number of bytes that was sent.
+ * @returns   Number of successfully transmitted bytes.
  */
-static int _fsm_call_send(gnrc_tcp_tcb_t* tcb, void *buf, size_t nByte)
+static int _fsm_call_send(gnrc_tcp_tcb_t *tcb, void *buf, size_t len)
 {
-    gnrc_pktsnip_t *out_pkt = NULL;     /* Outgoing packet */
-    uint16_t seq_con = 0;               /* Sequence number consumption (out_pkt) */
-
     DEBUG("gnrc_tcp_fsm.c : _fsm_call_send()\n");
+
     size_t payload = (tcb->snd_una + tcb->snd_wnd) - tcb->snd_nxt;
 
-    /* We are allowed to send further bytes if window is open */
+    /* Check if window is open and all packets were transmitted */
     if (payload > 0 && tcb->snd_wnd > 0 && tcb->pkt_retransmit == NULL) {
         /* Calculate segment size */
-        payload = (payload < GNRC_TCP_MSS ? payload : GNRC_TCP_MSS);
+        payload = (payload < GNRC_TCP_MSS) ? payload : GNRC_TCP_MSS;
         payload = (payload < tcb->mss) ? payload : tcb->mss;
-        payload = (payload < nByte) ? payload : nByte;
+        payload = (payload < len) ? payload : len;
 
         /* Calculate payload size for this segment */
+        gnrc_pktsnip_t *out_pkt = NULL;
+        uint16_t seq_con = 0;
         _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, buf, payload);
         _pkt_setup_retransmit(tcb, out_pkt, false);
         _pkt_send(tcb, out_pkt, seq_con, false);
@@ -311,122 +284,129 @@ static int _fsm_call_send(gnrc_tcp_tcb_t* tcb, void *buf, size_t nByte)
 }
 
 /**
- * @brief FSM Handling Function for receiving data.
+ * @brief FSM handling function for receiving data.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[in/out] buf            buffer to store received data into.
- * @param[in]     nByte          Maximum Number of Bytes to receive.
+ * @param[in,out] tcb   TCB holding the connection information.
+ * @param[in,out] buf   Buffer to store received data into.
+ * @param[in]     len   Maximum number of bytes to receive.
  *
- * @return number of bytes that was received.
+ * @returns   Number of successfully received bytes.
  */
-static int _fsm_call_recv(gnrc_tcp_tcb_t* tcb, void *buf, size_t nByte)
+static int _fsm_call_recv(gnrc_tcp_tcb_t *tcb, void *buf, size_t len)
 {
-    gnrc_pktsnip_t *out_pkt = NULL;     /* Outgoing packet */
-    uint16_t seq_con = 0;               /* Sequence number consumption (out_pkt) */
-
     DEBUG("gnrc_tcp_fsm.c : _fsm_call_recv()\n");
+
     if (ringbuffer_empty(&tcb->rcv_buf)) {
         return 0;
     }
 
-    /* Read up to the requesed amount of data */
-    size_t rcvd = ringbuffer_get(&(tcb->rcv_buf), buf, nByte);
+    /* Read data into 'buf' up to 'len' bytes from receive buffer */
+    size_t rcvd = ringbuffer_get(&(tcb->rcv_buf), buf, len);
 
-    /* If the buffer can store more than the GNRC_TCP_MSS: open Window to available buffersize */
+    /* If receive buffer can store more than GNRC_TCP_MSS: open window to available buffer size */
     if (ringbuffer_get_free(&tcb->rcv_buf) >= GNRC_TCP_MSS) {
         tcb->rcv_wnd = ringbuffer_get_free(&(tcb->rcv_buf));
 
-        /* Send ACK to update window on reopening */
-        _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, 0, 0);
+        /* Send ACK to anounce window update */
+        gnrc_pktsnip_t *out_pkt = NULL;
+        uint16_t seq_con = 0;
+        _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
         _pkt_send(tcb, out_pkt, seq_con, false);
     }
     return rcvd;
 }
 
 /**
- * @brief FSM Handling Function for initiating a teardown.
+ * @brief FSM handling function for starting connection teardown sequence.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_call_close(gnrc_tcp_tcb_t* tcb, bool *notify_owner)
+static int _fsm_call_close(gnrc_tcp_tcb_t *tcb)
 {
-    gnrc_pktsnip_t *out_pkt = NULL;     /* Outgoing packet */
-    uint16_t seq_con = 0;               /* Sequence number consumption (out_pkt) */
-
     DEBUG("gnrc_tcp_fsm.c : _fsm_call_close()\n");
-    if (tcb->state == GNRC_TCP_FSM_STATE_SYN_RCVD
-    || tcb->state == GNRC_TCP_FSM_STATE_ESTABLISHED
-    || tcb->state == GNRC_TCP_FSM_STATE_CLOSE_WAIT
-    ) {
+
+    if (tcb->state == FSM_STATE_SYN_RCVD || tcb->state == FSM_STATE_ESTABLISHED ||
+        tcb->state == FSM_STATE_CLOSE_WAIT) {
+
         /* Send FIN packet */
+        gnrc_pktsnip_t *out_pkt = NULL;
+        uint16_t seq_con = 0;
         _pkt_build(tcb, &out_pkt, &seq_con, MSK_FIN_ACK, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
         _pkt_setup_retransmit(tcb, out_pkt, false);
         _pkt_send(tcb, out_pkt, seq_con, false);
     }
-    switch (tcb->state) {
-        case GNRC_TCP_FSM_STATE_LISTEN:
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
-            break;
 
-        case GNRC_TCP_FSM_STATE_SYN_RCVD:
-        case GNRC_TCP_FSM_STATE_ESTABLISHED:
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_FIN_WAIT_1, notify_owner);
-            break;
-
-        case GNRC_TCP_FSM_STATE_CLOSE_WAIT:
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_LAST_ACK, notify_owner);
-            break;
-
-        default:
-            break;
+    if (tcb->state == FSM_STATE_LISTEN) {
+        _transition_to(tcb, FSM_STATE_CLOSED);
+    }
+    else if (tcb->state == FSM_STATE_SYN_RCVD || tcb->state == FSM_STATE_ESTABLISHED) {
+        _transition_to(tcb, FSM_STATE_FIN_WAIT_1);
+    }
+    else if (tcb->state == FSM_STATE_CLOSE_WAIT) {
+        _transition_to(tcb, FSM_STATE_LAST_ACK);
     }
     return 0;
 }
 
 /**
- * @brief FSM Handling Function for forcefull teardown
+ * @brief FSM handling function for forcefull connection teardown sequence.
  *
- * @return -EOPNOTSUPP, because function is currently not implemented
+ * @param[in,out] tcb   TCB holding the connection information.
+ *
+ * @returns   Zero on success.
  */
-static int _fsm_call_abort(void)
+static int _fsm_call_abort(gnrc_tcp_tcb_t *tcb)
 {
     DEBUG("gnrc_tcp_fsm.c : _fsm_call_abort()\n");
-    DEBUG("gnrc_tcp_fsm.c : _fsm_call_abort() : ABORT not implemented\n");
-    return -EOPNOTSUPP;
+
+    /* A reset must be sent in case the TCB state is in one of those cases */
+    if (tcb->state == FSM_STATE_SYN_RCVD || tcb->state == FSM_STATE_ESTABLISHED ||
+        tcb->state == FSM_STATE_FIN_WAIT_1 || tcb->state == FSM_STATE_FIN_WAIT_2 ||
+        tcb->state == FSM_STATE_CLOSE_WAIT) {
+
+        /* Send RST packet without retransmit */
+        gnrc_pktsnip_t *out_pkt = NULL;
+        uint16_t seq_con = 0;
+        _pkt_build(tcb, &out_pkt, &seq_con, MSK_RST, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
+        _pkt_send(tcb, out_pkt, seq_con, false);
+    }
+
+    /* From here on any state must transition into CLOSED state */
+    _transition_to(tcb, FSM_STATE_CLOSED);
+
+    return 0;
 }
 
 /**
- * @brief FSM Handling Function for processing of a received packet
+ * @brief FSM handling function for processing of an incomming TCP packet.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[in]     in_pkt         Packet that should be processed.
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb      TCB holding the connection information.
+ * @param[in]     in_pkt   Incomming packet.
  *
- * @return zero on success.
- * @return -ENOMEM Can't allocate receive buffer.
+ * @returns   Zero on success.
+ *            -ENOMEM if receive buffer could not be allocated.
  */
-static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *notify_owner)
+static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
 {
     gnrc_pktsnip_t *out_pkt = NULL;  /* Outgoing packet */
-    uint16_t seq_con = 0;            /* Sequence number consumption (out_pkt) */
-    gnrc_pktsnip_t *snp = NULL;      /* Temporary Packet Snip */
-    gnrc_tcp_tcb_t *lst = NULL;      /* Temporary tcb pointer */
-    uint16_t ctl = 0;                /* Received control bits */
-    uint32_t seg_seq = 0;            /* Received sequence number */
-    uint32_t seg_ack = 0;            /* Received acknowledgment number */
-    uint32_t seg_len = 0;            /* Segment length */
-    uint32_t pay_len = 0;            /* Payload length */
-    uint32_t seg_wnd = 0;            /* Segment window */
+    uint16_t seq_con = 0;            /* Sequence number consumption of outgoing packet */
+    gnrc_pktsnip_t *snp = NULL;      /* Temporary packet snip */
+    gnrc_tcp_tcb_t *lst = NULL;      /* Temporary pointer to TCB */
+    uint16_t ctl = 0;                /* Control bits of the incomming packet */
+    uint32_t seg_seq = 0;            /* Sequence number of the incomming packet*/
+    uint32_t seg_ack = 0;            /* Acknowledgment number of the incomming packet */
+    uint32_t seg_wnd = 0;            /* Receive window of the incomming packet */
+    uint32_t seg_len = 0;            /* Segment length of the incomming packet */
+    uint32_t pay_len = 0;            /* Payload length of the incomming packet */
 
     DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt()\n");
-    /* Search TCP header. */
+    /* Search for TCP header. */
     LL_SEARCH_SCALAR(in_pkt, snp, type, GNRC_NETTYPE_TCP);
     tcp_hdr_t *tcp_hdr = (tcp_hdr_t *) snp->data;
 
-    /* Verify packet options, return if they were faulty */
+    /* Parse packet options, return if they are malformed */
     if (_option_parse(tcb, tcp_hdr) < 0) {
         return 0;
     }
@@ -437,47 +417,45 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
     seg_ack = byteorder_ntohl(tcp_hdr->ack_num);
     seg_wnd = byteorder_ntohs(tcp_hdr->window);
 
-    /* Extract IPv6-Header */
+    /* Extract network layer header */
 #ifdef MODULE_GNRC_IPV6
     LL_SEARCH_SCALAR(in_pkt, snp, type, GNRC_NETTYPE_IPV6);
     if (snp == NULL) {
-        DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : incomming packet had no ip header\n");
+        DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : incomming packet had no IPv6 header\n");
         return 0;
     }
     void *ip = snp->data;
 #endif
 
     /* Handle state LISTEN */
-    if (tcb->state == GNRC_TCP_FSM_STATE_LISTEN) {
-        /* 1) Check RST: if set, return */
+    if (tcb->state == FSM_STATE_LISTEN) {
+        /* 1) Check RST: if RST is set: return */
         if (ctl & MSK_RST) {
             return 0;
         }
-        /* 2) Check ACK: if set, send reset with seq_no = ack_no, return */
+        /* 2) Check ACK: if ACK is set: send RST with seq_no = ack_no and return */
         if (ctl & MSK_ACK) {
             _pkt_build_reset_from_pkt(&out_pkt, in_pkt);
             _pkt_send(tcb, out_pkt, 0, false);
             return 0;
         }
-        /* 3) Check SYN: Setup incoming connection*/
+        /* 3) Check SYN: if SYN is set prepare for incomming connection */
         if (ctl & MSK_SYN) {
             uint16_t src = byteorder_ntohs(tcp_hdr->src_port);
             uint16_t dst = byteorder_ntohs(tcp_hdr->dst_port);
 
-            /* Check if SYN Request is handled by another connection */
-            lst = _list_gnrc_tcp_tcb_head;
+            /* Check if SYN request is handled by another connection */
+            lst = _list_tcb_head;
             while (lst) {
-                /* Compare Portnumbers and Network Layer Adresses */
-                /* Note: Packets without ip-header were discarded earlier */
+                /* Compare port numbers and network layer adresses */
                 if (lst->local_port == dst && lst->peer_port == src) {
 #ifdef MODULE_GNRC_IPV6
                     if (snp->type == GNRC_NETTYPE_IPV6 && lst->address_family == AF_INET6) {
                         ipv6_addr_t *dst_addr = &((ipv6_hdr_t *)ip)->dst;
                         ipv6_addr_t *src_addr = &((ipv6_hdr_t *)ip)->src;
 
-                        if (ipv6_addr_equal((ipv6_addr_t *)lst->local_addr, dst_addr)
-                        && ipv6_addr_equal((ipv6_addr_t *)lst->peer_addr, src_addr)
-                        ) {
+                        if (ipv6_addr_equal((ipv6_addr_t *)lst->local_addr, dst_addr) &&
+                            ipv6_addr_equal((ipv6_addr_t *)lst->peer_addr, src_addr)) {
                             break;
                         }
                     }
@@ -491,15 +469,14 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
                 return 0;
             }
 
-            /* SYN Request is valid, fill connection struct with connection information */
-            /* Note: Packets without ipv6-header were discarded earlier */
+            /* SYN request is valid, fill TCB with connection information */
 #ifdef MODULE_GNRC_IPV6
             if (snp->type == GNRC_NETTYPE_IPV6 && tcb->address_family == AF_INET6) {
                 memcpy(tcb->local_addr, &((ipv6_hdr_t *)ip)->dst, sizeof(ipv6_addr_t));
                 memcpy(tcb->peer_addr, &((ipv6_hdr_t *)ip)->src, sizeof(ipv6_addr_t));
             }
 #else
-            DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : Received Address was not stored\n");
+            DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : Received address was not stored\n");
             return 0;
 #endif
 
@@ -516,17 +493,17 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
             _pkt_build(tcb, &out_pkt, &seq_con, MSK_SYN_ACK, tcb->iss, tcb->rcv_nxt, NULL, 0);
             _pkt_setup_retransmit(tcb, out_pkt, false);
             _pkt_send(tcb, out_pkt, seq_con, false);
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_SYN_RCVD, notify_owner);
+            _transition_to(tcb, FSM_STATE_SYN_RCVD);
         }
         return 0;
     }
     /* Handle state SYN_SENT */
-    else if (tcb->state == GNRC_TCP_FSM_STATE_SYN_SENT) {
+    else if (tcb->state == FSM_STATE_SYN_SENT) {
         /* 1) Check ACK */
         if (ctl & MSK_ACK) {
             /* If ACK is not acceptable ...*/
             if (seg_ack <= tcb->iss || seg_ack > tcb->snd_nxt) {
-                /* ... send Reset if RST is not set else return */
+                /* ... send reset, if RST is not set else return */
                 if ((ctl & MSK_RST) != MSK_RST) {
                     _pkt_build(tcb, &out_pkt, &seq_con, MSK_RST, seg_ack, 0, NULL, 0);
                     _pkt_send(tcb, out_pkt, seq_con, false);
@@ -538,7 +515,7 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
         if (ctl & MSK_RST) {
             /* ... and ACK: Translate to CLOSED, if not return */
             if (ctl & MSK_ACK) {
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+                _transition_to(tcb, FSM_STATE_CLOSED);
             }
             return 0;
         }
@@ -550,31 +527,28 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
                 tcb->snd_una = seg_ack;
                 _pkt_acknowledge(tcb, seg_ack);
             }
-            /* Set the local address accordingly */
-            /* Note: Packets without ipv6-header were discarded earlier */
+            /* Set local network layer address accordingly */
 #ifdef MODULE_GNRC_IPV6
             if (snp->type == GNRC_NETTYPE_IPV6 && tcb->address_family == AF_INET6) {
                 memcpy(tcb->local_addr, &((ipv6_hdr_t *)ip)->dst, sizeof(ipv6_addr_t));
             }
 #else
-            DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : Received Address was not stored\n");
+            DEBUG("gnrc_tcp_fsm.c : _fsm_rcvd_pkt() : Received address was not stored\n");
             return 0;
 #endif
 
-            /* SYN has been ACKed, reply pure ACK, T: SYN_SENT -> ESTABLISHED */
+            /* SYN has been ACKed. Send ACK, T: SYN_SENT -> ESTABLISHED */
             if (tcb->snd_una > tcb->iss) {
-                _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt,
-                           NULL, 0);
+                _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
                 _pkt_send(tcb, out_pkt, seq_con, false);
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_ESTABLISHED, notify_owner);
+                _transition_to(tcb, FSM_STATE_ESTABLISHED);
             }
-            /* Simultaneous SYN received send SYN+ACK, T: SYN_SENT -> SYN_RCVD */
+            /* Simultaneous SYN received. Send SYN+ACK, T: SYN_SENT -> SYN_RCVD */
             else {
-                _pkt_build(tcb, &out_pkt, &seq_con, MSK_SYN_ACK, tcb->iss, tcb->rcv_nxt,
-                           NULL, 0);
+                _pkt_build(tcb, &out_pkt, &seq_con, MSK_SYN_ACK, tcb->iss, tcb->rcv_nxt, NULL, 0);
                 _pkt_setup_retransmit(tcb, out_pkt, false);
                 _pkt_send(tcb, out_pkt, seq_con, false);
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_SYN_RCVD, notify_owner);
+                _transition_to(tcb, FSM_STATE_SYN_RCVD);
             }
             tcb->snd_wnd = seg_wnd;
             tcb->snd_wl1 = seg_seq;
@@ -586,29 +560,26 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
     else {
         seg_len = _pkt_get_seg_len(in_pkt);
         pay_len = _pkt_get_pay_len(in_pkt);
-        /* 1) Verify Sequence Number ... */
-        if (!_pkt_chk_seq_num(tcb, seg_seq, pay_len)) {
+        /* 1) Verify sequence number ... */
+        if (_pkt_chk_seq_num(tcb, seg_seq, pay_len)) {
             /* ... if invalid, and RST not set, reply with pure ACK, return */
             if ((ctl & MSK_RST) != MSK_RST) {
-                _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt,
-                           NULL, 0);
+                _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
                 _pkt_send(tcb, out_pkt, seq_con, false);
             }
             return 0;
         }
         /* 2) Check RST: If RST is set ... */
         if (ctl & MSK_RST) {
-            /* .. and State is SYN_RCVD and passive Open: SYN_RCVD -> LISTEN */
-            if (tcb->state == GNRC_TCP_FSM_STATE_SYN_RCVD
-            && (tcb->status & GNRC_TCP_STATUS_PASSIVE)
-            ) {
-                if (_transition_to(tcb, GNRC_TCP_FSM_STATE_LISTEN, notify_owner) == -ENOMEM) {
-                    _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+            /* .. and state is SYN_RCVD and the connection is passive: SYN_RCVD -> LISTEN */
+            if (tcb->state == FSM_STATE_SYN_RCVD && (tcb->status & STATUS_PASSIVE)) {
+                if (_transition_to(tcb, FSM_STATE_LISTEN) == -ENOMEM) {
+                    _transition_to(tcb, FSM_STATE_CLOSED);
                     return -ENOMEM;
                 }
             }
             else {
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+                _transition_to(tcb, FSM_STATE_CLOSED);
             }
             return 0;
         }
@@ -617,7 +588,7 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
             /* ... send RST, seq_no = snd_nxt, ack_no = rcv_nxt */
             _pkt_build(tcb, &out_pkt, &seq_con, MSK_RST, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
             _pkt_send(tcb, out_pkt, seq_con, false);
-            _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+            _transition_to(tcb, FSM_STATE_CLOSED);
             return 0;
         }
         /* 4) Check ACK */
@@ -625,12 +596,12 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
             return 0;
         }
         else {
-            if (tcb->state == GNRC_TCP_FSM_STATE_SYN_RCVD) {
+            if (tcb->state == FSM_STATE_SYN_RCVD) {
                 if (LSS_32_BIT(tcb->snd_una, seg_ack) && LEQ_32_BIT(seg_ack, tcb->snd_nxt)) {
                     tcb->snd_wnd = seg_wnd;
                     tcb->snd_wl1 = seg_seq;
                     tcb->snd_wl2 = seg_ack;
-                    _transition_to(tcb, GNRC_TCP_FSM_STATE_ESTABLISHED, notify_owner);
+                    _transition_to(tcb, FSM_STATE_ESTABLISHED);
                 }
                 else {
                     _pkt_build(tcb, &out_pkt, &seq_con, MSK_RST, seg_ack, 0, NULL, 0);
@@ -638,14 +609,10 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
                 }
             }
             /* Acknowledgment processing */
-            if (tcb->state == GNRC_TCP_FSM_STATE_ESTABLISHED
-            || tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_1
-            || tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_2
-            || tcb->state == GNRC_TCP_FSM_STATE_CLOSE_WAIT
-            || tcb->state == GNRC_TCP_FSM_STATE_CLOSING
-            || tcb->state == GNRC_TCP_FSM_STATE_LAST_ACK
-            ) {
-                /* Sent data has been acknowledged */
+            if (tcb->state == FSM_STATE_ESTABLISHED || tcb->state == FSM_STATE_FIN_WAIT_1 ||
+                tcb->state == FSM_STATE_FIN_WAIT_2 || tcb->state == FSM_STATE_CLOSE_WAIT ||
+                tcb->state == FSM_STATE_CLOSING || tcb->state == FSM_STATE_LAST_ACK) {
+                /* Acknowledge previously sent data */
                 if (LSS_32_BIT(tcb->snd_una, seg_ack) && LEQ_32_BIT(seg_ack, tcb->snd_nxt)) {
                     tcb->snd_una = seg_ack;
                     _pkt_acknowledge(tcb, seg_ack);
@@ -657,73 +624,71 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
                     _pkt_send(tcb, out_pkt, seq_con, false);
                     return 0;
                 }
-                /* Update Window */
+                /* Update receive window */
                 if (LEQ_32_BIT(tcb->snd_una, seg_ack) && LEQ_32_BIT(seg_ack, tcb->snd_nxt)) {
-                    if (LSS_32_BIT(tcb->snd_wl1, seg_seq) || (tcb->snd_wl1 == seg_seq
-                    && LEQ_32_BIT(tcb->snd_wl2, seg_ack))
-                    ) {
+                    if (LSS_32_BIT(tcb->snd_wl1, seg_seq) || (tcb->snd_wl1 == seg_seq &&
+                        LEQ_32_BIT(tcb->snd_wl2, seg_ack))) {
                         tcb->snd_wnd = seg_wnd;
                         tcb->snd_wl1 = seg_seq;
                         tcb->snd_wl2 = seg_ack;
 
-                        /* Signal User after Window Update */
-                        *notify_owner = true;
+                        /* Signal user after window update */
+                        tcb->status |= STATUS_NOTIFY_USER;
                     }
                 }
                 /* Additional processing */
-                /* Check additionaly if previous our sent FIN has been acknowledged */
-                if (tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_1) {
+                /* Check additionaly if previously sent FIN was acknowledged */
+                if (tcb->state == FSM_STATE_FIN_WAIT_1) {
                     if (tcb->pkt_retransmit == NULL) {
-                        _transition_to(tcb, GNRC_TCP_FSM_STATE_FIN_WAIT_2, notify_owner);
+                        _transition_to(tcb, FSM_STATE_FIN_WAIT_2);
                     }
                 }
                 /* If retransmission queue is empty, acknowledge close operation */
-                if (tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_2) {
+                if (tcb->state == FSM_STATE_FIN_WAIT_2) {
                     if (tcb->pkt_retransmit == NULL) {
                         /* Optional: Unblock user close operation */
                     }
                 }
-                /* If our FIN has been acknowledged: Translate to TIME_WAIT */
-                if (tcb->state == GNRC_TCP_FSM_STATE_CLOSING) {
+                /* If our FIN has been acknowledged: Transition to TIME_WAIT */
+                if (tcb->state == FSM_STATE_CLOSING) {
                     if (tcb->pkt_retransmit == NULL) {
-                        _transition_to(tcb, GNRC_TCP_FSM_STATE_TIME_WAIT, notify_owner);
+                        _transition_to(tcb, FSM_STATE_TIME_WAIT);
                     }
                 }
-                /* If our FIN has been acknowledged: last ACK received, close connection */
-                if (tcb->state == GNRC_TCP_FSM_STATE_LAST_ACK) {
+                /* If our FIN was acknowledged and status is LAST_ACK: close connection */
+                if (tcb->state == FSM_STATE_LAST_ACK) {
                     if (tcb->pkt_retransmit == NULL) {
-                        _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+                        _transition_to(tcb, FSM_STATE_CLOSED);
                         return 0;
                     }
                 }
             }
         }
         /* 5) Check URG */
-        /* NOTE: Add Urgent Pointer Processing here ... */
-        /* 6) Process Payload, if existing */
+        /* NOTE: Add urgent pointer processing here ... */
+
+        /* 6) Process payload, if existing */
         if (pay_len > 0) {
-            /* Check if State is valid */
-            if (tcb->state == GNRC_TCP_FSM_STATE_ESTABLISHED
-            || tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_1
-            || tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_2
-            ) {
-                /* Search for begin of payload "chain" */
+            /* Check if state is valid for payload receiving */
+            if (tcb->state == FSM_STATE_ESTABLISHED || tcb->state == FSM_STATE_FIN_WAIT_1 ||
+                tcb->state == FSM_STATE_FIN_WAIT_2) {
+                /* Search for begin of payload */
                 LL_SEARCH_SCALAR(in_pkt, snp, type, GNRC_NETTYPE_UNDEF);
 
-                /* Add only Data that is expected, to be received */
+                /* Accept only data that is expected, to be received */
                 if (tcb->rcv_nxt == seg_seq) {
-                    /* Copy contents in to buffer */
+                    /* Copy contents into receive buffer */
                     while (snp && snp->type == GNRC_NETTYPE_UNDEF) {
                         tcb->rcv_nxt += ringbuffer_add(&(tcb->rcv_buf), snp->data, snp->size);
                         snp = snp->next;
                     }
-                    /* Shrink Receive Window */
+                    /* Shrink receive window */
                     tcb->rcv_wnd = ringbuffer_get_free(&(tcb->rcv_buf));
-                    /* Notify Owner because new data is available */
-                    *notify_owner = true;
+                    /* Notify owner because new data is available */
+                    tcb->status |= STATUS_NOTIFY_USER;
                 }
-                /* Send pure ACK, if FIN doesn't this already */
-                /* NOTE: this is the place to add piggybagging in the future */
+                /* Send ACK, if FIN processing sends ACK already */
+                /* NOTE: this is the place to add payload piggybagging in the future */
                 if (!(ctl & MSK_FIN)) {
                     _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt,
                                NULL, 0);
@@ -733,34 +698,30 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
         }
         /* 7) Check FIN */
         if (ctl & MSK_FIN) {
-            if (tcb->state == GNRC_TCP_FSM_STATE_CLOSED
-            || tcb->state == GNRC_TCP_FSM_STATE_LISTEN
-            || tcb->state == GNRC_TCP_FSM_STATE_SYN_SENT
-            ) {
+            if (tcb->state == FSM_STATE_CLOSED || tcb->state == FSM_STATE_LISTEN ||
+                tcb->state == FSM_STATE_SYN_SENT) {
                 return 0;
             }
-            /* Advance rcv_nxt over FIN bit. */
+            /* Advance rcv_nxt over FIN bit */
             tcb->rcv_nxt = seg_seq + seg_len;
             _pkt_build(tcb, &out_pkt, &seq_con, MSK_ACK, tcb->snd_nxt, tcb->rcv_nxt, NULL, 0);
             _pkt_send(tcb, out_pkt, seq_con, false);
 
-            if (tcb->state == GNRC_TCP_FSM_STATE_SYN_RCVD
-            || tcb->state == GNRC_TCP_FSM_STATE_ESTABLISHED
-            ) {
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSE_WAIT, notify_owner);
+            if (tcb->state == FSM_STATE_SYN_RCVD || tcb->state == FSM_STATE_ESTABLISHED) {
+                _transition_to(tcb, FSM_STATE_CLOSE_WAIT);
             }
-            else if (tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_1) {
+            else if (tcb->state == FSM_STATE_FIN_WAIT_1) {
                 if (tcb->pkt_retransmit == NULL) {
-                    _transition_to(tcb, GNRC_TCP_FSM_STATE_TIME_WAIT, notify_owner);
+                    _transition_to(tcb, FSM_STATE_TIME_WAIT);
                 }
                 else {
-                    _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSING, notify_owner);
+                    _transition_to(tcb, FSM_STATE_CLOSING);
                 }
             }
-            else if (tcb->state == GNRC_TCP_FSM_STATE_FIN_WAIT_2) {
-                _transition_to(tcb, GNRC_TCP_FSM_STATE_TIME_WAIT, notify_owner);
+            else if (tcb->state == FSM_STATE_FIN_WAIT_2) {
+                _transition_to(tcb, FSM_STATE_TIME_WAIT);
             }
-            else if (tcb->state == GNRC_TCP_FSM_STATE_TIME_WAIT) {
+            else if (tcb->state == FSM_STATE_TIME_WAIT) {
                 _restart_timewait_timer(tcb);
             }
         }
@@ -769,31 +730,30 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t* tcb, gnrc_pktsnip_t *in_pkt, bool *noti
 }
 
 /**
- * @brief FSM Handling Function for timewait timeout handling
+ * @brief FSM handling function for timewait timeout handling.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_timeout_timewait(gnrc_tcp_tcb_t* tcb, bool *notify_owner)
+static int _fsm_timeout_timewait(gnrc_tcp_tcb_t *tcb)
 {
     DEBUG("gnrc_tcp_fsm.c : _fsm_timeout_timewait()\n");
-    _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+    _transition_to(tcb, FSM_STATE_CLOSED);
     return 0;
 }
 
 /**
- * @brief FSM Handling Function for retransmissions
+ * @brief FSM handling function for retransmissions.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_timeout_retransmit(gnrc_tcp_tcb_t* tcb)
+static int _fsm_timeout_retransmit(gnrc_tcp_tcb_t *tcb)
 {
     DEBUG("gnrc_tcp_fsm.c : _fsm_timeout_retransmit()\n");
-    if(tcb->pkt_retransmit != NULL){
+    if (tcb->pkt_retransmit != NULL) {
         _pkt_setup_retransmit(tcb, tcb->pkt_retransmit, true);
         _pkt_send(tcb, tcb->pkt_retransmit, 0, true);
     }
@@ -804,34 +764,33 @@ static int _fsm_timeout_retransmit(gnrc_tcp_tcb_t* tcb)
 }
 
 /**
- * @brief FSM Handling Function for connection timeout handling
+ * @brief FSM handling function for connection timeout handling.
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_timeout_connection(gnrc_tcp_tcb_t* tcb, bool *notify_owner)
+static int _fsm_timeout_connection(gnrc_tcp_tcb_t *tcb)
 {
     DEBUG("gnrc_tcp_fsm.c : _fsm_timeout_connection()\n");
-    _transition_to(tcb, GNRC_TCP_FSM_STATE_CLOSED, notify_owner);
+    _transition_to(tcb, FSM_STATE_CLOSED);
     return 0;
 }
 
 /**
- * @brief FSM Handling Function for probe sending
+ * @brief FSM handling function for probe sending.
  *
- * @param[in/out] tcb Specifies tcb to use fsm on.
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_send_probe(gnrc_tcp_tcb_t* tcb)
+static int _fsm_send_probe(gnrc_tcp_tcb_t *tcb)
 {
     gnrc_pktsnip_t *out_pkt = NULL;  /* Outgoing packet */
-    uint8_t probe_pay[] = { 1 };     /* Probe Payload */
+    uint8_t probe_pay[] = {1};       /* Probe payload */
 
     DEBUG("gnrc_tcp_fsm.c : _fsm_send_probe()\n");
-    /* The Probe sends a already acknowledged Sequence No. with a garbage byte */
+    /* The probe sends a already acknowledged sequence no. with a garbage byte. */
     _pkt_build(tcb, &out_pkt, NULL, MSK_ACK, tcb->snd_una - 1, tcb->rcv_nxt, probe_pay,
                sizeof(probe_pay));
     _pkt_send(tcb, out_pkt, 0, false);
@@ -841,11 +800,11 @@ static int _fsm_send_probe(gnrc_tcp_tcb_t* tcb)
 /**
  * @brief FSM Handling Function for clearing the retransmit queue.
  *
- * @param[in/out] tcb Specifies tcb to use fsm on.
+ * @param[in,out] tcb   TCB holding the connection information.
  *
- * @return zero on success.
+ * @returns   Zero on success.
  */
-static int _fsm_clear_retransmit(gnrc_tcp_tcb_t* tcb)
+static int _fsm_clear_retransmit(gnrc_tcp_tcb_t *tcb)
 {
     DEBUG("gnrc_tcp_fsm.c : _fsm_clear_retransmit()\n");
     _clear_retransmit(tcb);
@@ -853,80 +812,77 @@ static int _fsm_clear_retransmit(gnrc_tcp_tcb_t* tcb)
 }
 
 /**
- * @brief real fsm: needs to be protected from the outside
+ * @brief FSM function (not synchronized).
  *
- * @param[in/out] tcb            Specifies tcb to use fsm on.
- * @param[in]     event          current event that triggers fsm translation
- * @param[in]     in_pkt         packet that triggered fsm event. Only in case of RCVD_PKT
- * @param[in/out] buf            buffer for send and receive functions
- * @param[in]     nByte          number of bytes to send or receive atmost
- * @param[out]    notify_owner   non-negative if the tcb owner should be notified
+ * @param[in,out] tcb     TCB holding the connection information.
+ * @param[in]     event   Current event that triggers fsm translation.
+ * @param[in]     in_pkt  Packet that triggered fsm event. Only in case of RCVD_PKT.
+ * @param[in,out] buf     Buffer for send and receive functions.
+ * @param[in]     len     Number of bytes to send or receive in @p buf.
  *
- * @return TODO zero on success
- * @return -ENOMEM       Can't allocate receive buffer.
- * @return -EADDRINUSE   Given local port is already in use
- * @return -EOPNOTSUPP   If event is not implemented
+ * @returns   Zero on success.
+ *           -ENOMEM if receive buffer could not be allocated.
+ *           -EADDRINUSE if given local port number in @p tcb is already in use.
+ *           -EOPNOTSUPP if event is not implemented.
  */
-static int _fsm_unprotected(gnrc_tcp_tcb_t* tcb, gnrc_tcp_fsm_event_t event,
-                            gnrc_pktsnip_t *in_pkt, void *buf, size_t nByte, bool *notify_owner)
+static int _fsm_unprotected(gnrc_tcp_tcb_t *tcb, fsm_event_t event, gnrc_pktsnip_t *in_pkt,
+                            void *buf, size_t len)
 {
-    int ret = 0; /* Return Value */
+    int ret = 0;
 
     DEBUG("gnrc_tcp_fsm.c : _fsm_unprotected()\n");
     switch (event) {
-        case GNRC_TCP_FSM_EVENT_CALL_OPEN :
-            ret = _fsm_call_open(tcb, notify_owner);
+        case FSM_EVENT_CALL_OPEN :
+            ret = _fsm_call_open(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_CALL_SEND :
-            ret = _fsm_call_send(tcb, buf, nByte);
+        case FSM_EVENT_CALL_SEND :
+            ret = _fsm_call_send(tcb, buf, len);
             break;
-        case GNRC_TCP_FSM_EVENT_CALL_RECV :
-            ret = _fsm_call_recv(tcb, buf, nByte);
+        case FSM_EVENT_CALL_RECV :
+            ret = _fsm_call_recv(tcb, buf, len);
             break;
-        case GNRC_TCP_FSM_EVENT_CALL_CLOSE :
-            ret = _fsm_call_close(tcb, notify_owner);
+        case FSM_EVENT_CALL_CLOSE :
+            ret = _fsm_call_close(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_CALL_ABORT :
-            ret = _fsm_call_abort();
+        case FSM_EVENT_CALL_ABORT :
+            ret = _fsm_call_abort(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_RCVD_PKT :
-            ret = _fsm_rcvd_pkt(tcb, in_pkt, notify_owner);
+        case FSM_EVENT_RCVD_PKT :
+            ret = _fsm_rcvd_pkt(tcb, in_pkt);
             break;
-        case GNRC_TCP_FSM_EVENT_TIMEOUT_TIMEWAIT :
-            ret = _fsm_timeout_timewait(tcb, notify_owner);
+        case FSM_EVENT_TIMEOUT_TIMEWAIT :
+            ret = _fsm_timeout_timewait(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_TIMEOUT_RETRANSMIT :
+        case FSM_EVENT_TIMEOUT_RETRANSMIT :
             ret = _fsm_timeout_retransmit(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_TIMEOUT_CONNECTION :
-            ret = _fsm_timeout_connection(tcb, notify_owner);
+        case FSM_EVENT_TIMEOUT_CONNECTION :
+            ret = _fsm_timeout_connection(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_SEND_PROBE :
+        case FSM_EVENT_SEND_PROBE :
             ret = _fsm_send_probe(tcb);
             break;
-        case GNRC_TCP_FSM_EVENT_CLEAR_RETRANSMIT :
+        case FSM_EVENT_CLEAR_RETRANSMIT :
             ret = _fsm_clear_retransmit(tcb);
             break;
     }
     return ret;
 }
 
-int _fsm(gnrc_tcp_tcb_t* tcb, gnrc_tcp_fsm_event_t event, gnrc_pktsnip_t *in_pkt, void *buf,
-         size_t nByte)
+int _fsm(gnrc_tcp_tcb_t *tcb, fsm_event_t event, gnrc_pktsnip_t *in_pkt, void *buf, size_t len)
 {
-    msg_t msg;
-    int32_t result;
-    bool notify_owner;
-
     /* Lock FSM */
     mutex_lock(&(tcb->fsm_lock));
-    notify_owner = false;
-    result = _fsm_unprotected(tcb, event, in_pkt, buf, nByte, &notify_owner);
 
-    /* Notify owner if something interesting happend */
-    if (notify_owner && tcb->owner != KERNEL_PID_UNDEF) {
+    /* Call FSM */
+    tcb->status &= ~STATUS_NOTIFY_USER;
+    int32_t result = _fsm_unprotected(tcb, event, in_pkt, buf, len);
+
+    /* Notify blocked thread if something interesting happend */
+    if ((tcb->status & STATUS_NOTIFY_USER) && (tcb->status & STATUS_WAIT_FOR_MSG)) {
+        msg_t msg;
         msg.type = MSG_TYPE_NOTIFY_USER;
-        msg_send(&msg, tcb->owner);
+        mbox_try_put(&(tcb->mbox), &msg);
     }
     /* Unlock FSM */
     mutex_unlock(&(tcb->fsm_lock));

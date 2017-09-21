@@ -7,23 +7,20 @@ BOARD ?= native
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
-BOARD_INSUFFICIENT_MEMORY := chronos msb-430 msb-430h nucleo-f030 nucleo32-f042 \
-                             stm32f0discovery telosb weio
-
-# blacklist this until #6022 is sorted out
-BOARD_BLACKLIST := nrf52dk
+BOARD_INSUFFICIENT_MEMORY := chronos msb-430 msb-430h nucleo32-f031 nucleo32-f042 \
+                             nucleo32-l031 nucleo-f030 nucleo-l053 stm32f0discovery \
+                             telosb
 
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
 USEMODULE += gnrc_netdev_default
 USEMODULE += auto_init_gnrc_netif
 # Specify the mandatory networking modules for IPv6 and UDP
+USEMODULE += gnrc_ipv6_default
 USEMODULE += gnrc_udp
+USEMODULE += gnrc_sock_udp
 # Additional networking modules that can be dropped if not needed
 USEMODULE += gnrc_icmpv6_echo
-
-#
-USEMODULE += gnrc_sock_udp
 
 USEPKG += nanocoap
 # optionally enable nanocoap's debug output

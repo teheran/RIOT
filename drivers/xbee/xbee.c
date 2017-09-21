@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     driver_xbee
+ * @ingroup     drivers_xbee
  * @{
  *
  * @file
@@ -27,8 +27,11 @@
 #include "assert.h"
 #include "xtimer.h"
 #include "net/eui64.h"
-#include "net/netdev2.h"
+#include "net/netdev.h"
 #include "net/ieee802154.h"
+#ifdef MODULE_GNRC
+#include "net/gnrc.h"
+#endif
 
 #define ENABLE_DEBUG    (0)
 #include "debug.h"
@@ -231,7 +234,7 @@ static void _rx_cb(void *arg, uint8_t c)
             if (dev->rx_count == dev->rx_limit) {
                 /* packet is complete */
                 if (dev->event_callback) {
-                    dev->event_callback((netdev2_t *)dev, NETDEV2_EVENT_ISR);
+                    dev->event_callback((netdev_t *)dev, NETDEV_EVENT_ISR);
                 }
                 dev->int_state = XBEE_INT_STATE_IDLE;
             }
@@ -274,7 +277,7 @@ static int _get_addr_long(xbee_t *dev, uint8_t *val, size_t len)
     return -ECANCELED;
 }
 
-static int _set_short_addr(xbee_t *dev, uint8_t *address)
+static int _set_short_addr(xbee_t *dev, const uint8_t *address)
 {
     uint8_t cmd[4];
     resp_t resp;
@@ -288,7 +291,7 @@ static int _set_short_addr(xbee_t *dev, uint8_t *address)
     return resp.status;
 }
 
-static int _set_addr(xbee_t *dev, uint8_t *val, size_t len)
+static int _set_addr(xbee_t *dev, const uint8_t *val, size_t len)
 {
     uint8_t addr[2];
 
@@ -317,7 +320,7 @@ static int _set_addr(xbee_t *dev, uint8_t *val, size_t len)
     return -ECANCELED;
 }
 
-static int _set_addr_len(xbee_t *dev, uint16_t *val, size_t len)
+static int _set_addr_len(xbee_t *dev, const uint16_t *val, size_t len)
 {
     if (len != sizeof(uint16_t)) {
         return -EOVERFLOW;
@@ -366,7 +369,7 @@ static int _get_channel(xbee_t *dev, uint8_t *val, size_t max)
     return -ECANCELED;
 }
 
-static int _set_channel(xbee_t *dev, uint8_t *val, size_t len)
+static int _set_channel(xbee_t *dev, const uint8_t *val, size_t len)
 {
     uint8_t cmd[3];
     resp_t resp;
@@ -403,7 +406,7 @@ static int _get_panid(xbee_t *dev, uint8_t *val, size_t max)
     return -ECANCELED;
 }
 
-static int _set_panid(xbee_t *dev, uint8_t *val, size_t len)
+static int _set_panid(xbee_t *dev, const uint8_t *val, size_t len)
 {
     uint8_t cmd[4];
     resp_t resp;
@@ -423,7 +426,7 @@ static int _set_panid(xbee_t *dev, uint8_t *val, size_t len)
 }
 
 #ifdef MODULE_XBEE_ENCRYPTION
-static int _set_encryption(xbee_t *dev, uint8_t *val)
+static int _set_encryption(xbee_t *dev, const uint8_t *val)
 {
     uint8_t cmd[3];
     resp_t resp;
@@ -445,7 +448,7 @@ static int _set_encryption(xbee_t *dev, uint8_t *val)
     return -ECANCELED;
 }
 
-static int _set_encryption_key(xbee_t *dev, uint8_t *val, size_t len)
+static int _set_encryption_key(xbee_t *dev, const uint8_t *val, size_t len)
 {
         uint8_t cmd[18];
         resp_t resp;
@@ -566,7 +569,7 @@ int xbee_parse_hdr(xbee_t *dev, const uint8_t *xhdr, xbee_l2hdr_t *l2hdr)
     return (int)(alen + 3);
 }
 
-int xbee_init(netdev2_t *dev)
+int xbee_init(netdev_t *dev)
 {
     uint8_t tmp[2];
     xbee_t *xbee = (xbee_t *)dev;
@@ -631,7 +634,7 @@ int xbee_init(netdev2_t *dev)
     return 0;
 }
 
-static int xbee_send(netdev2_t *dev, const struct iovec *vector, unsigned count)
+static int xbee_send(netdev_t *dev, const struct iovec *vector, unsigned count)
 {
     xbee_t *xbee = (xbee_t *)dev;
     size_t size;
@@ -668,7 +671,7 @@ static int xbee_send(netdev2_t *dev, const struct iovec *vector, unsigned count)
     return (int)size;
 }
 
-static int xbee_recv(netdev2_t *dev, void *buf, size_t len, void *info)
+static int xbee_recv(netdev_t *dev, void *buf, size_t len, void *info)
 {
     (void)info;
     size_t size;
@@ -703,7 +706,7 @@ static int xbee_recv(netdev2_t *dev, void *buf, size_t len, void *info)
     return (int)size;
 }
 
-static void xbee_isr(netdev2_t *netdev)
+static void xbee_isr(netdev_t *netdev)
 {
     xbee_t *dev = (xbee_t *)netdev;
 
@@ -715,12 +718,12 @@ static void xbee_isr(netdev2_t *netdev)
         }
         else {
             DEBUG("[xbee] isr: data available, waiting for read\n");
-            dev->event_callback(netdev, NETDEV2_EVENT_RX_COMPLETE);
+            dev->event_callback(netdev, NETDEV_EVENT_RX_COMPLETE);
         }
     }
 }
 
-static int xbee_get(netdev2_t *ndev, netopt_t opt, void *value, size_t max_len)
+static int xbee_get(netdev_t *ndev, netopt_t opt, void *value, size_t max_len)
 {
     xbee_t *dev = (xbee_t *)ndev;
     assert(dev);
@@ -769,31 +772,39 @@ static int xbee_get(netdev2_t *ndev, netopt_t opt, void *value, size_t max_len)
             return sizeof(uint16_t);
         case NETOPT_NID:
             return _get_panid(dev, (uint8_t *)value, max_len);
+#ifdef MODULE_GNRC
+        case NETOPT_PROTO:
+            if (max_len != sizeof(gnrc_nettype_t)) {
+                return -EOVERFLOW;
+            }
+            *((gnrc_nettype_t *)value) = XBEE_DEFAULT_PROTOCOL;
+            return sizeof(gnrc_nettype_t);
+#endif
         default:
             return -ENOTSUP;
     }
 }
 
-static int xbee_set(netdev2_t *ndev, netopt_t opt, void *value, size_t len)
+static int xbee_set(netdev_t *ndev, netopt_t opt, const void *value, size_t len)
 {
     xbee_t *dev = (xbee_t *)ndev;
     assert(dev);
 
     switch (opt) {
         case NETOPT_ADDRESS:
-            return _set_addr(dev, (uint8_t *)value, len);
+            return _set_addr(dev, value, len);
         case NETOPT_ADDR_LEN:
         case NETOPT_SRC_LEN:
             return _set_addr_len(dev, value, len);
         case NETOPT_CHANNEL:
-            return _set_channel(dev, (uint8_t *)value, len);
+            return _set_channel(dev, value, len);
         case NETOPT_NID:
-            return _set_panid(dev, (uint8_t *)value, len);
+            return _set_panid(dev, value, len);
 #ifdef MODULE_XBEE_ENCRYPTION
         case NETOPT_ENCRYPTION:
-            return _set_encryption(dev, (uint8_t *)value);
+            return _set_encryption(dev, value);
         case NETOPT_ENCRYPTION_KEY:
-            return _set_encryption_key(dev, (uint8_t *)value, len);
+            return _set_encryption_key(dev, value, len);
 #endif
         default:
             return -ENOTSUP;
@@ -803,7 +814,7 @@ static int xbee_set(netdev2_t *ndev, netopt_t opt, void *value, size_t len)
 /*
  * The drivers netdev interface
  */
-const netdev2_driver_t xbee_driver = {
+const netdev_driver_t xbee_driver = {
     .send = xbee_send,
     .recv = xbee_recv,
     .init = xbee_init,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Freie Universität Berlin
+ * Copyright (C) 2015-2017 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -16,8 +16,8 @@
  * @author          Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef PERIPH_CPU_
-#define PERIPH_CPU_
+#ifndef PERIPH_CPU_H
+#define PERIPH_CPU_H
 
 #include "periph_cpu_common.h"
 
@@ -26,11 +26,18 @@ extern "C" {
 #endif
 
 /**
+ * @brief   System core clock speed, fixed to 16MHz for all NRF51x CPUs
+ */
+#define CLOCK_CORECLOCK     (16000000U)
+
+/**
  * @brief   Redefine some peripheral names to unify them between nRF51 and 52
  * @{
  */
-#define GPIO_BASE           (NRF_GPIO)
 #define UART_IRQN           (UART0_IRQn)
+#define SPI_SCKSEL          (dev(bus)->PSELSCK)
+#define SPI_MOSISEL         (dev(bus)->PSELMOSI)
+#define SPI_MISOSEL         (dev(bus)->PSELMISO)
 /** @} */
 
 /**
@@ -61,5 +68,5 @@ typedef struct {
 }
 #endif
 
-#endif /* PERIPH_CPU_ */
+#endif /* PERIPH_CPU_H */
 /** @} */

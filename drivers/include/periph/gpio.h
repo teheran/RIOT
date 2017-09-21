@@ -50,8 +50,8 @@
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef GPIO_H
-#define GPIO_H
+#ifndef PERIPH_GPIO_H
+#define PERIPH_GPIO_H
 
 #include <limits.h>
 
@@ -125,7 +125,6 @@ typedef void (*gpio_cb_t)(void *arg);
 
 /**
  * @brief   Default interrupt context for GPIO pins
- * @{
  */
 #ifndef HAVE_GPIO_ISR_CTX_T
 typedef struct {
@@ -133,10 +132,13 @@ typedef struct {
     void *arg;              /**< optional argument */
 } gpio_isr_ctx_t;
 #endif
-/** @} */
 
 /**
  * @brief   Initialize the given pin as general purpose input or output
+ *
+ * When configured as output, the pin state after initialization is undefined.
+ * The output pin's state **should** be untouched during the initialization.
+ * This behavior can however **not be guaranteed** by every platform.
  *
  * @param[in] pin       pin to initialize
  * @param[in] mode      mode of the pin, see @c gpio_mode_t
@@ -223,5 +225,5 @@ void gpio_write(gpio_t pin, int value);
 }
 #endif
 
-#endif /* GPIO_H */
+#endif /* PERIPH_GPIO_H */
 /** @} */
