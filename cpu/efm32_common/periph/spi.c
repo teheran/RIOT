@@ -34,69 +34,38 @@
 #include "em_usart.h"
 #include "em_common_utils.h"
 
-/* guard file in case no SPI device is defined */
-#if SPI_NUMOF
+void poweroff(spi_t bus);
+void poweron(spi_t bus);
 
-static mutex_t spi_lock[SPI_NUMOF] = {
-#if SPI_0_EN
-    [SPI_0] = MUTEX_INIT,
-#endif
-#if SPI_1_EN
-    [SPI_1] = MUTEX_INIT,
-#endif
-};
+/* FIXME: I think this should not only lock on SPI devices, but also on their .dev */
+static mutex_t spi_lock[SPI_NUMOF];
 
-int spi_init_master(spi_t dev, spi_conf_t conf, spi_speed_t speed)
+void spi_init(spi_t bus)
 {
-    /* check if device is valid */
-    if (dev >= SPI_NUMOF) {
-        return -1;
-    }
+    assert(bus <= SPI_NUMOF);
 
-    /* enable clocks */
-    CMU_ClockEnable(cmuClock_HFPER, true);
-    CMU_ClockEnable(spi_config[dev].cmu, true);
-
-    /* initialize and enable peripheral */
-    EFM32_CREATE_INIT(init, USART_InitSync_TypeDef, USART_INITSYNC_DEFAULT,
-        .conf.baudrate = (uint32_t) speed,
-        .conf.clockMode = (USART_ClockMode_TypeDef) conf,
-        .conf.msbf = true
-    );
-
-    USART_InitSync(spi_config[dev].dev, &init.conf);
-
-    /* configure the pins */
-    spi_conf_pins(dev);
-
-    return 0;
+    mutex_init(&spi_lock[bus]);
 }
 
-int spi_init_slave(spi_t dev, spi_conf_t conf, char (*cb)(char data))
-{
-    /* not (yet) supported */
-    return -1;
-}
-
-int spi_conf_pins(spi_t dev)
+int conf_pins(spi_t bus)
 {
     /* configure the pins */
-    gpio_init(spi_config[dev].clk_pin, GPIO_OUT);
-    gpio_init(spi_config[dev].mosi_pin, GPIO_OUT);
-    gpio_init(spi_config[dev].miso_pin, GPIO_IN_PD);
+    gpio_init(spi_config[bus].clk_pin, GPIO_OUT);
+    gpio_init(spi_config[bus].mosi_pin, GPIO_OUT);
+    gpio_init(spi_config[bus].miso_pin, GPIO_IN_PD);
 
-    gpio_set(spi_config[dev].clk_pin);
-    gpio_set(spi_config[dev].mosi_pin);
+    gpio_set(spi_config[bus].clk_pin);
+    gpio_set(spi_config[bus].mosi_pin);
 
     /* configure pin functions */
 #ifdef _SILICON_LABS_32B_PLATFORM_1
-    spi_config[dev].dev->ROUTE = (spi_config[dev].loc |
+    spi_config[bus].dev->ROUTE = (spi_config[bus].loc |
                                   USART_ROUTE_RXPEN |
                                   USART_ROUTE_TXPEN |
                                   USART_ROUTE_CLKPEN);
 #else
-    spi_config[dev].dev->ROUTELOC0 = spi_config[dev].loc;
-    spi_config[dev].dev->ROUTEPEN = (USART_ROUTEPEN_RXPEN |
+    spi_config[bus].dev->ROUTELOC0 = spi_config[bus].loc;
+    spi_config[bus].dev->ROUTEPEN = (USART_ROUTEPEN_RXPEN |
                                      USART_ROUTEPEN_TXPEN |
                                      USART_ROUTEPEN_CLKPEN);
 #endif
@@ -104,45 +73,66 @@ int spi_conf_pins(spi_t dev)
     return 0;
 }
 
-int spi_acquire(spi_t dev)
+int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk)
 {
-    mutex_lock((mutex_t *) &spi_lock[dev]);
+    mutex_lock((mutex_t *) &spi_lock[bus]);
 
-    return 0;
+    poweron(bus);
+
+    CMU_ClockEnable(cmuClock_HFPER, true);
+    CMU_ClockEnable(spi_config[bus].cmu, true);
+
+    EFM32_CREATE_INIT(init, USART_InitSync_TypeDef, USART_INITSYNC_DEFAULT,
+        .conf.baudrate = (uint32_t) clk,
+        .conf.clockMode = (USART_ClockMode_TypeDef) mode,
+        .conf.msbf = true
+    );
+
+    USART_InitSync(spi_config[bus].dev, &init.conf);
+
+    /* configure the pins */
+    conf_pins(bus);
+
+    return SPI_OK;
 }
 
-int spi_release(spi_t dev)
+void spi_release(spi_t bus)
 {
-    mutex_unlock((mutex_t *) &spi_lock[dev]);
+    /** FIXME this should swich things off again -- but how to properly switch off HFPER? */
 
-    return 0;
+    poweroff(bus);
+
+    mutex_unlock((mutex_t *) &spi_lock[bus]);
 }
 
-int spi_transfer_byte(spi_t dev, char out, char *in)
+void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont,
+                        const void *out, void *in, size_t len)
 {
-    if (in != NULL) {
-        (*in) = USART_SpiTransfer(spi_config[dev].dev, out);
+    uint8_t *out_buf = (uint8_t *)out;
+    uint8_t *in_buf = (uint8_t *)in;
+
+    if (cs != SPI_CS_UNDEF) {
+        gpio_clear((gpio_t)cs);
     }
-    else {
-        USART_SpiTransfer(spi_config[dev].dev, out);
+
+    for (size_t i = 0; i < len; i++) {
+        uint8_t ret = USART_SpiTransfer(spi_config[bus].dev, out != NULL ? out_buf[i] : 0);
+        if (in != NULL)
+            in_buf[i] = ret;
     }
 
-    return 0;
+    if ((!cont) && (cs != SPI_CS_UNDEF)) {
+        gpio_set((gpio_t)cs);
+    }
 }
 
-void spi_transmission_begin(spi_t dev, char reset_val)
+void poweron(spi_t bus)
 {
-    return;
+    CMU_ClockEnable(spi_config[bus].cmu, true);
 }
 
-void spi_poweron(spi_t dev)
+void poweroff(spi_t bus)
 {
-    CMU_ClockEnable(spi_config[dev].cmu, true);
+    CMU_ClockEnable(spi_config[bus].cmu, false);
 }
 
-void spi_poweroff(spi_t dev)
-{
-    CMU_ClockEnable(spi_config[dev].cmu, false);
-}
-
-#endif /* SPI_NUMOF */
