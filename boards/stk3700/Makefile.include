@@ -9,9 +9,15 @@ PORT_DARWIN ?= $(firstword $(sort $(wildcard /dev/tty.usbmodem*)))
 # setup serial terminal
 include $(RIOTMAKE)/tools/serial.inc.mk
 
-# setup JLink for flashing
-export JLINK_DEVICE := $(CPU_MODEL)
-include $(RIOTMAKE)/tools/jlink.inc.mk
+PROGRAMMER ?= jlink
+
+ifeq ($(PROGRAMMER),jlink)
+  # setup JLink for flashing
+  export JLINK_DEVICE := $(CPU_MODEL)
+  include $(RIOTMAKE)/tools/jlink.inc.mk
+else ifeq ($(PROGRAMMER),openocd)
+  include $(RIOTMAKE)/tools/openocd.inc.mk
+endif
 
 # add board common drivers
 USEMODULE += boards_common_silabs
