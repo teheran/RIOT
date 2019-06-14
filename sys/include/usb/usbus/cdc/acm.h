@@ -34,7 +34,7 @@ typedef enum {
     /**
      * @brief DTE (e.g. a personal computer) is present and connected
      */
-    USBUS_CDCACM_LINE_STATE_DTE 
+    USBUS_CDCACM_LINE_STATE_DTE
 } usbus_cdcacm_line_state_t;
 
 typedef struct usbus_cdcacm_device usbus_cdcacm_device_t;
@@ -46,22 +46,20 @@ struct usbus_cdcacm_device {
     usbus_handler_t handler_ctrl;
     usbus_interface_t iface_ctrl;
     usbus_interface_t iface_data;
-    usbus_endpoint_t ep_ctrl;
-    usbus_endpoint_t ep_data_in;
-    usbus_endpoint_t ep_data_out;
-    usbus_hdr_gen_t cdc_hdr;
-    usbus_hdr_gen_t acm_hdr;
-    usbus_hdr_gen_t union_hdr;
-    usbus_hdr_gen_t call_mngt_hdr;
+    usbus_endpoint_t *ep_ctrl;
+    usbus_endpoint_t *ep_data_in;
+    usbus_endpoint_t *ep_data_out;
+    usbus_hdr_gen_t cdcacm_hdr;
     usbus_cdcacm_cb_t cb;
     tsrb_t tsrb;
     usbus_t *usbus;
     size_t occupied;
     usbus_cdcacm_line_state_t state;
+    event_t flush;
 };
 
 int cdc_init(usbus_t *usbus, usbus_cdcacm_device_t *handler,
-             usbus_cdcacm_cb_t cb, char *buf, size_t len);
+             usbus_cdcacm_cb_t cb, uint8_t *buf, size_t len);
 size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const char *buf, size_t len);
 #ifdef __cplusplus
 }
