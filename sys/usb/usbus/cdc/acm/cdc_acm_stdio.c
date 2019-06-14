@@ -37,12 +37,9 @@
 #include "vfs.h"
 #endif
 
-#define ENABLE_DEBUG 0
-#include "debug.h"
-
 static usbus_cdcacm_device_t cdcacm;
-static char _cdc_tx_buf_mem[STDIO_UART_RX_BUFSIZE * 4];
-static char _cdc_rx_buf_mem[STDIO_UART_RX_BUFSIZE];
+static uint8_t _cdc_tx_buf_mem[STDIO_UART_RX_BUFSIZE * 4];
+static uint8_t _cdc_rx_buf_mem[STDIO_UART_RX_BUFSIZE];
 isrpipe_t cdc_stdio_isrpipe = ISRPIPE_INIT(_cdc_rx_buf_mem);
 
 #if MODULE_VFS
