@@ -91,6 +91,21 @@ extern "C" {
  */
 
 /**
+ * @brief Set line character formatting properties
+ */
+#define USB_CDC_MGNT_REQUEST_SET_LINE_CODING            0x20
+
+/**
+ * @brief Request the currently configured line coding
+ */
+#define USB_CDC_MGNT_REQUEST_GET_LINE_CODING            0x21
+
+/**
+ * @brief Set the control line state
+ */
+#define USB_CDC_MGNT_REQUEST_SET_CONTROL_LINE_STATE     0x22
+
+/**
  * @brief Set ethernet multicast filter request
  */
 #define USB_CDC_MGNT_REQUEST_SET_ETH_MULTICAST_FILTER   0x40
@@ -114,6 +129,22 @@ extern "C" {
  * @brief Get ethernet statistics
  */
 #define USB_CDC_MGNT_REQUEST_GET_ETH_STATISTICS         0x44
+/** @} */
+
+/**
+ * @name USB CDC ACM control line state flags
+ * @{
+ */
+
+/**
+ * @brief DTE (e.g. a PC) is present and listening
+ */
+#define USB_CDC_ACM_CONTROL_LINE_DTE            0x01
+
+/**
+ * @brief Activate carrier control for half duplex modems
+ */
+#define USB_CDC_ACM_CONTROL_LINE_CARRIER        0x02
 /** @} */
 
 /**
