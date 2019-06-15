@@ -2,7 +2,6 @@ BOARD ?= samr21-xpro
 include ../Makefile.tests_common
 
 USEMODULE += auto_init_usbus
-USEMODULE += usbus_cdc_acm
 USEMODULE += stdio_cdc_acm
 USEMODULE += shell
 USEMODULE += shell_commands
