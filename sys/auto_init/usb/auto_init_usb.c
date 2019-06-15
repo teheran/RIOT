@@ -26,6 +26,7 @@
 
 #ifdef MODULE_USBUS_CDC_ECM
 #include "usb/usbus/cdc/ecm.h"
+usbus_cdcecm_device_t cdcecm;
 #endif
 #ifdef MODULE_USBUS_CDC_ACM
 #include "usb/usbus/cdc/acm.h"
