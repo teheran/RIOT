@@ -9,13 +9,13 @@
 #ifndef USB_USBUS_CDC_ACM_H
 #define USB_USBUS_CDC_ACM_H
 
+#include <stdint.h>
+#include "usb/usbus.h"
 #include "tsrb.h"
 
 #ifdef __cplusplus
 extern "c" {
 #endif
-
-#define USBUS_MSG_CDCACM_FLUSH  (USBUS_MSG_TYPE_HANDLER | 0x01)
 
 /**
  * @brief This flag configures the cdc acm to buffer stdout until the host
@@ -25,6 +25,9 @@ extern "c" {
 #define USBUS_CDCACM_BUFFER_FOR_DTE  (1)
 #endif /* USBUS_CDCACM_BUFFER_FOR_DTE */
 
+/**
+ * @brief CDC ACM line state as reported by the host computer
+ */
 typedef enum {
     /**
      * @brief No DTE connected
@@ -46,9 +49,6 @@ struct usbus_cdcacm_device {
     usbus_handler_t handler_ctrl;
     usbus_interface_t iface_ctrl;
     usbus_interface_t iface_data;
-    usbus_endpoint_t *ep_ctrl;
-    usbus_endpoint_t *ep_data_in;
-    usbus_endpoint_t *ep_data_out;
     usbus_hdr_gen_t cdcacm_hdr;
     usbus_cdcacm_cb_t cb;
     tsrb_t tsrb;
