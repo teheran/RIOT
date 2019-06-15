@@ -50,6 +50,7 @@ static const usbus_handler_driver_t cdc_driver = {
 
 static size_t _gen_full_acm_descriptor(usbus_t *usbus, void *arg);
 
+/* Descriptors */
 static const usbus_hdr_gen_funcs_t _cdcacm_descriptor = {
     .get_header = _gen_full_acm_descriptor,
     .len = {
@@ -60,23 +61,6 @@ static const usbus_hdr_gen_funcs_t _cdcacm_descriptor = {
     },
     .len_type = USBUS_HDR_LEN_FIXED,
 };
-
-size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const char *buf, size_t len)
-{
-    for (size_t i = 0; i < len; i++) {
-        tsrb_add_one(&cdcacm->tsrb, buf[i]);
-        if (buf[i] == '\n') {
-            _cdc_acm_flush(cdcacm);
-        }
-    }
-    return len;
-}
-
-/* Signal flush */
-void _cdc_acm_flush(usbus_cdcacm_device_t *cdcacm)
-{
-    usbus_event_post(cdcacm->usbus, &cdcacm->flush);
-}
 
 static size_t _gen_mngt_descriptor(usbus_t *usbus)
 {
@@ -140,10 +124,28 @@ static size_t _gen_full_acm_descriptor(usbus_t *usbus, void *arg)
     return total_len;
 }
 
+/* Submit (ACM interface in) */
+size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const char *buf, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        tsrb_add_one(&cdcacm->tsrb, buf[i]);
+        if (buf[i] == '\n') {
+            _cdc_acm_flush(cdcacm);
+        }
+    }
+    return len;
+}
+
+/* flush event */
+void _cdc_acm_flush(usbus_cdcacm_device_t *cdcacm)
+{
+    usbus_event_post(cdcacm->usbus, &cdcacm->flush);
+}
+
 int cdc_init(usbus_t *usbus, usbus_cdcacm_device_t *handler,
              usbus_cdcacm_cb_t cb, uint8_t *buf, size_t len)
 {
-    memset(handler, 0 , sizeof(usbus_cdcacm_device_t));
+    memset(handler, 0, sizeof(usbus_cdcacm_device_t));
     handler->usbus = usbus;
     tsrb_init(&handler->tsrb, buf, len);
     handler->handler_ctrl.driver = &cdc_driver;
@@ -164,9 +166,6 @@ static void _init(usbus_t *usbus, usbus_handler_t *handler)
     cdcacm->cdcacm_hdr.funcs = &_cdcacm_descriptor;
     cdcacm->cdcacm_hdr.arg = cdcacm;
 
-    /* Instantiate interfaces */
-    memset(&cdcacm->iface_ctrl, 0, sizeof(usbus_interface_t));
-    memset(&cdcacm->iface_data, 0, sizeof(usbus_interface_t));
     /* Configure Interface 0 as control interface */
     cdcacm->iface_ctrl.class = USB_CLASS_CDC_CONTROL ;
     cdcacm->iface_ctrl.subclass = USB_CDC_SUBCLASS_ACM;
@@ -181,20 +180,23 @@ static void _init(usbus_t *usbus, usbus_handler_t *handler)
     cdcacm->iface_data.handler = handler;
 
     /* Create required endpoints */
-    cdcacm->ep_ctrl = usbus_add_endpoint(usbus, &cdcacm->iface_ctrl, USB_EP_TYPE_INTERRUPT, USB_EP_DIR_IN, 8);
-    cdcacm->ep_ctrl->interval = 255;
-    cdcacm->ep_data_out = usbus_add_endpoint(usbus, &cdcacm->iface_data, USB_EP_TYPE_BULK, USB_EP_DIR_OUT, 64);
-    cdcacm->ep_data_out->interval = 0;
-    cdcacm->ep_data_in = usbus_add_endpoint(usbus, &cdcacm->iface_data, USB_EP_TYPE_BULK, USB_EP_DIR_IN, 64);
-    cdcacm->ep_data_in->interval = 0;
+    usbus_endpoint_t *ep = usbus_add_endpoint(usbus, &cdcacm->iface_ctrl,
+                                              USB_EP_TYPE_INTERRUPT,
+                                              USB_EP_DIR_IN, 8);
+    ep->interval = 255;
+    usbus_enable_endpoint(ep);
+    ep = usbus_add_endpoint(usbus, &cdcacm->iface_data, USB_EP_TYPE_BULK, USB_EP_DIR_IN, 64);
+    ep->interval = 0;
+    usbus_enable_endpoint(ep);
+    ep = usbus_add_endpoint(usbus, &cdcacm->iface_data, USB_EP_TYPE_BULK, USB_EP_DIR_OUT, 64);
+    ep->interval = 0;
+    usbus_enable_endpoint(ep);
+    usbdev_ep_ready(ep->ep, 0);
+
     /* Add interfaces to the stack */
     usbus_add_interface(usbus, &cdcacm->iface_ctrl);
     usbus_add_interface(usbus, &cdcacm->iface_data);
 
-    usbdev_ep_ready(cdcacm->ep_data_out->ep, 0);
-    usbus_enable_endpoint(cdcacm->ep_data_out);
-    usbus_enable_endpoint(cdcacm->ep_data_in);
-    usbus_enable_endpoint(cdcacm->ep_ctrl);
     usbus_handler_set_flag(handler, USBUS_HANDLER_FLAG_RESET);
 }
 
@@ -227,19 +229,19 @@ static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
             break;
         default:
             DEBUG("default handle setup rqt:0x%x\n", setup->request);
-            break;
+            return -1;
     }
     return 0;
 }
 
-static void _handle_in(usbus_t *usbus, usbus_handler_t *handler)
+static void _handle_in(usbus_t *usbus, usbus_cdcacm_device_t *handler,
+                       usbdev_ep_t *ep)
 {
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
     if (usbus->state != USBUS_STATE_CONFIGURED ||
             cdcacm->state != USBUS_CDCACM_LINE_STATE_DTE) {
         return;
     }
-    usbdev_ep_t *ep = cdcacm->ep_data_in->ep;
     while (!tsrb_empty(&cdcacm->tsrb)) {
         int c = tsrb_get_one(&cdcacm->tsrb);
         ep->buf[cdcacm->occupied++] = (uint8_t)c;
@@ -254,20 +256,20 @@ static void _transfer_handler(usbus_t *usbus, usbus_handler_t *handler,
                              usbdev_ep_t *ep, usbus_event_transfer_t event)
 {
     (void)event; /* Only receives TR_COMPLETE events */
-    usbus_cdcacm_device_t *cdc = (usbus_cdcacm_device_t*)handler;
-    if (ep == cdc->ep_data_out->ep) {
+    usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
+    if (ep->dir == USB_EP_DIR_OUT && ep->type == USB_EP_TYPE_BULK) {
         size_t len;
         /* Retrieve incoming data */
         usbdev_ep_get(ep, USBOPT_EP_AVAILABLE, &len, sizeof(size_t));
         if (len > 0) {
-            cdc->cb(usbus, cdc, ep->buf, len);
+            cdcacm->cb(usbus, cdcacm, ep->buf, len);
         }
         usbdev_ep_ready(ep, 0);
     }
-    else if (ep == cdc->ep_data_in->ep) {
-        cdc->occupied = 0;
-        if (!tsrb_empty(&cdc->tsrb)) {
-            return _handle_in(usbus, handler);
+    if (ep->dir == USB_EP_DIR_IN && ep->type == USB_EP_TYPE_BULK) {
+        cdcacm->occupied = 0;
+        if (!tsrb_empty(&cdcacm->tsrb)) {
+            return _handle_in(usbus, cdcacm, ep);
         }
     }
 }
@@ -277,7 +279,7 @@ static void _handle_flush(event_t *ev)
     usbus_cdcacm_device_t *cdcacm = container_of(ev, usbus_cdcacm_device_t,
                                                  flush);
     if (cdcacm->occupied == 0) {
-        _handle_in(cdcacm->usbus, (usbus_handler_t*)cdcacm);
+        _handle_in(cdcacm->usbus, cdcacm, cdcacm->iface_data.ep->next->ep);
     }
 }
 
