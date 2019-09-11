@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup usb_acm Virtual Serial Port
+ * @ingroup usbusb_cdc_acm
  * @{
  * @file
  *
@@ -16,17 +16,15 @@
  * @}
  */
 
-#include "tsrb.h"
+#include <string.h>
 
+#include "tsrb.h"
 #include "usb/descriptor.h"
 #include "usb/cdc.h"
-#include "usb/cdc/acm.h"
 #include "usb/descriptor.h"
 #include "usb/usbus.h"
 #include "usb/usbus/cdc/acm.h"
 #include "usb/usbus/control.h"
-
-#include <string.h>
 
 #define ENABLE_DEBUG    (0)
 #include "debug.h"
@@ -38,7 +36,6 @@ static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
 static void _transfer_handler(usbus_t *usbus, usbus_handler_t *handler,
                              usbdev_ep_t *ep, usbus_event_transfer_t event);
 
-static void _cdc_acm_flush(usbus_cdcacm_device_t *cdcacm);
 static void _handle_flush(event_t *ev);
 
 static const usbus_handler_driver_t cdc_driver = {
@@ -62,7 +59,7 @@ static const usbus_hdr_gen_funcs_t _cdcacm_descriptor = {
     .len_type = USBUS_HDR_LEN_FIXED,
 };
 
-static size_t _gen_mngt_descriptor(usbus_t *usbus)
+static size_t _gen_mngt_descriptor(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm)
 {
     usb_desc_call_mngt_t mngt;
     /* functional call management descriptor */
@@ -70,7 +67,7 @@ static size_t _gen_mngt_descriptor(usbus_t *usbus)
     mngt.type = USB_TYPE_DESCRIPTOR_CDC;
     mngt.subtype = 0x1;
     mngt.capabalities = 0;
-    mngt.data_if = 1;
+    mngt.data_if = cdcacm->iface_data.idx;
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&mngt, sizeof(mngt));
     return sizeof(usb_desc_call_mngt_t);
 }
@@ -120,39 +117,36 @@ static size_t _gen_full_acm_descriptor(usbus_t *usbus, void *arg)
     total_len += _gen_cdc_descriptor(usbus);
     total_len += _gen_acm_descriptor(usbus);
     total_len += _gen_union_descriptor(usbus, cdcacm);
-    total_len += _gen_mngt_descriptor(usbus);
+    total_len += _gen_mngt_descriptor(usbus, cdcacm);
     return total_len;
 }
 
 /* Submit (ACM interface in) */
-size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const char *buf, size_t len)
+size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const uint8_t *buf, size_t len)
 {
-    for (size_t i = 0; i < len; i++) {
-        tsrb_add_one(&cdcacm->tsrb, buf[i]);
-        if (buf[i] == '\n') {
-            _cdc_acm_flush(cdcacm);
-        }
-    }
-    return len;
+    return tsrb_add(&cdcacm->tsrb, buf, len);
 }
 
 /* flush event */
-void _cdc_acm_flush(usbus_cdcacm_device_t *cdcacm)
+void usbus_cdc_acm_flush(usbus_cdcacm_device_t *cdcacm)
 {
-    usbus_event_post(cdcacm->usbus, &cdcacm->flush);
+    if (cdcacm->usbus) {
+        usbus_event_post(cdcacm->usbus, &cdcacm->flush);
+    }
 }
 
-int cdc_init(usbus_t *usbus, usbus_cdcacm_device_t *handler,
-             usbus_cdcacm_cb_t cb, uint8_t *buf, size_t len)
+int cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
+             usbus_cdcacm_cb_t cb, usbus_cdcacm_coding_cb_t coding_cb,
+             uint8_t *buf, size_t len)
 {
-    memset(handler, 0, sizeof(usbus_cdcacm_device_t));
-    handler->usbus = usbus;
-    tsrb_init(&handler->tsrb, buf, len);
-    handler->handler_ctrl.driver = &cdc_driver;
-    handler->cb = cb;
-    handler->state = USBUS_CDCACM_LINE_STATE_DISCONNECTED;
-    usbus_register_event_handler(usbus, (usbus_handler_t*)handler);
-    return 0;
+    memset(cdcacm, 0, sizeof(usbus_cdcacm_device_t));
+    cdcacm->usbus = usbus;
+    tsrb_init(&cdcacm->tsrb, buf, len);
+    cdcacm->handler_ctrl.driver = &cdc_driver;
+    cdcacm->cb = cb;
+    cdcacm->coding_cb = coding_cb;
+    cdcacm->state = USBUS_CDCACM_LINE_STATE_DISCONNECTED;
+    usbus_register_event_handler(usbus, &cdcacm->handler);
 }
 
 static void _init(usbus_t *usbus, usbus_handler_t *handler)
@@ -206,40 +200,57 @@ static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
     (void)state;
     (void)usbus;
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
-    DEBUG("Request:0x%x\n", setup->request);
     switch(setup->request) {
-        case USB_SETUP_REQ_SET_LINE_CODING:
-            DEBUG("Value:0x%x, interface:%d, len:%d\n", setup->value,
-                                                        setup->index,
-                                                        setup->length);
+        case USB_CDC_MGNT_REQUEST_SET_LINE_CODING:
+            if (state == USBUS_SETUPRQ_OUTDATA &&
+                    setup->length == sizeof(usb_req_cdcacm_coding_t)) {
+                size_t len = 0;
+                usb_req_cdcacm_coding_t *coding =
+                    (usb_req_cdcacm_coding_t*)usbus_control_get_out_data(usbus,
+                                                                         &len);
+
+                if (len != sizeof(usb_req_cdcacm_coding_t)) {
+                    DEBUG("CDCACM: incorrect length of LINE_CODING set request"
+                          ", expected: %u, got: %u",
+                          sizeof(usb_req_cdcacm_coding_t), len);
+                    return -1;
+                }
+                if (cdcacm->coding_cb) {
+                    DEBUG("Setting line coding to baud rate %" PRIu32 ", "
+                          "%u data bits, parity value %u, stop bit value %u\n",
+                          coding->baud, coding->databits, coding->parity,
+                          coding->format);
+                    if (cdcacm->coding_cb(cdcacm, coding->baud,
+                                          coding->databits, coding->parity,
+                                          coding->format) < 0) {
+                        return -1;
+                    }
+                }
+            }
             break;
-        case USB_SETUP_REQ_SET_CONTROL_LINE_STATE:
+        case USB_CDC_MGNT_REQUEST_SET_CONTROL_LINE_STATE:
             if (setup->value & USB_CDC_ACM_CONTROL_LINE_DTE) {
-                DEBUG("CDC ACM: DTE Enabled\n");
+                DEBUG("CDC ACM: DTE enabled on interface %u\n", setup->index);
                 cdcacm->state = USBUS_CDCACM_LINE_STATE_DTE;
-                _cdc_acm_flush(cdcacm);
+                usbus_cdc_acm_flush(cdcacm);
             }
             else {
                 cdcacm->state = USBUS_CDCACM_LINE_STATE_DISCONNECTED;
-                DEBUG("CDC ACM: DTE disabled\n");
+                DEBUG("CDC ACM: DTE disabled on interface %u\n", setup->index);
             }
-            DEBUG("Value:0x%x, interface:%d, nb:%d\n", setup->value,
-                                                       setup->index,
-                                                       setup->length);
             break;
         default:
-            DEBUG("default handle setup rqt:0x%x\n", setup->request);
+            DEBUG("unhandled USB setup request:0x%x\n", setup->request);
             return -1;
     }
     return 0;
 }
 
-static void _handle_in(usbus_t *usbus, usbus_cdcacm_device_t *handler,
+static void _handle_in(usbus_cdcacm_device_t *cdcacm,
                        usbdev_ep_t *ep)
 {
-    usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
-    if (usbus->state != USBUS_STATE_CONFIGURED ||
-            cdcacm->state != USBUS_CDCACM_LINE_STATE_DTE) {
+    if (cdcacm->usbus->state != USBUS_STATE_CONFIGURED ||
+        cdcacm->state != USBUS_CDCACM_LINE_STATE_DTE) {
         return;
     }
     while (!tsrb_empty(&cdcacm->tsrb)) {
@@ -255,21 +266,22 @@ static void _handle_in(usbus_t *usbus, usbus_cdcacm_device_t *handler,
 static void _transfer_handler(usbus_t *usbus, usbus_handler_t *handler,
                              usbdev_ep_t *ep, usbus_event_transfer_t event)
 {
+    (void)usbus;
     (void)event; /* Only receives TR_COMPLETE events */
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
-    if (ep->dir == USB_EP_DIR_OUT && ep->type == USB_EP_TYPE_BULK) {
+    if ((ep->dir == USB_EP_DIR_OUT) && (ep->type == USB_EP_TYPE_BULK)) {
         size_t len;
         /* Retrieve incoming data */
         usbdev_ep_get(ep, USBOPT_EP_AVAILABLE, &len, sizeof(size_t));
         if (len > 0) {
-            cdcacm->cb(usbus, cdcacm, ep->buf, len);
+            cdcacm->cb(cdcacm, ep->buf, len);
         }
         usbdev_ep_ready(ep, 0);
     }
-    if (ep->dir == USB_EP_DIR_IN && ep->type == USB_EP_TYPE_BULK) {
+    if ((ep->dir == USB_EP_DIR_IN) && (ep->type == USB_EP_TYPE_BULK)) {
         cdcacm->occupied = 0;
         if (!tsrb_empty(&cdcacm->tsrb)) {
-            return _handle_in(usbus, cdcacm, ep);
+            return _handle_in(cdcacm, ep);
         }
     }
 }
@@ -279,14 +291,14 @@ static void _handle_flush(event_t *ev)
     usbus_cdcacm_device_t *cdcacm = container_of(ev, usbus_cdcacm_device_t,
                                                  flush);
     if (cdcacm->occupied == 0) {
-        _handle_in(cdcacm->usbus, cdcacm, cdcacm->iface_data.ep->next->ep);
+        _handle_in(cdcacm, cdcacm->iface_data.ep->next->ep);
     }
 }
 
 static void _handle_reset(usbus_handler_t *handler)
 {
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t *)handler;
-    DEBUG("CDC ACM: Reset\n");
+    DEBUG("CDC ACM: Reset notification received\n");
 
     cdcacm->state = USBUS_CDCACM_LINE_STATE_DISCONNECTED;
 }
