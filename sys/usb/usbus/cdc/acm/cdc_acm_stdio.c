@@ -108,8 +108,8 @@ ssize_t stdio_write(const void* buffer, size_t len)
     return len;
 }
 
-void cdcacm_rx_pipe(usbus_cdcacm_device_t *cdcacm,
-                           uint8_t *data, size_t len)
+static void _cdc_acm_rx_pipe(usbus_cdcacm_device_t *cdcacm,
+                             uint8_t *data, size_t len)
 {
     (void)cdcacm;
     for (size_t i = 0; i < len; i++) {
@@ -117,8 +117,8 @@ void cdcacm_rx_pipe(usbus_cdcacm_device_t *cdcacm,
     }
 }
 
-void usb_cdcacm_stdio_init(usbus_t *usbus)
+void usb_cdc_acm_stdio_init(usbus_t *usbus)
 {
-    cdc_init(usbus, &cdcacm, cdcacm_rx_pipe, NULL, _cdc_tx_buf_mem,
-             sizeof(_cdc_tx_buf_mem));
+    usbus_cdc_acm_init(usbus, &cdcacm, _cdc_acm_rx_pipe, NULL,
+                       _cdc_tx_buf_mem, sizeof(_cdc_tx_buf_mem));
 }
