@@ -11,7 +11,7 @@
  * @{
  *
  * @file
- * @brief CDC ACM stdio implementation
+ * @brief CDC ACM stdio implementation for USBUS CDC ACM
  *
  * This file implements a USB CDC ACM callback and read/write functions.
  *
@@ -43,8 +43,8 @@ static uint8_t _cdc_rx_buf_mem[STDIO_UART_RX_BUFSIZE];
 isrpipe_t cdc_stdio_isrpipe = ISRPIPE_INIT(_cdc_rx_buf_mem);
 
 #if MODULE_VFS
-static ssize_t uart_stdio_vfs_read(vfs_file_t *filp, void *dest, size_t nbytes);
-static ssize_t uart_stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes);
+static ssize_t stdio_vfs_read(vfs_file_t *filp, void *dest, size_t nbytes);
+static ssize_t stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes);
 
 /**
  * @brief VFS file operation table for stdin/stdout/stderr
@@ -60,7 +60,7 @@ static ssize_t stdio_vfs_read(vfs_file_t *filp, void *dest, size_t nbytes)
     if (fd != STDIN_FILENO) {
         return -EBADF;
     }
-    return uart_stdio_read(dest, nbytes);
+    return stdio_read(dest, nbytes);
 }
 
 static ssize_t stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes)
@@ -69,7 +69,7 @@ static ssize_t stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes)
     if (fd == STDIN_FILENO) {
         return -EBADF;
     }
-    return uart_stdio_write(src, nbytes);
+    return stdio_write(src, nbytes);
 }
 #endif
 
@@ -103,14 +103,14 @@ ssize_t stdio_read(void* buffer, size_t len)
 ssize_t stdio_write(const void* buffer, size_t len)
 {
     usbus_cdc_acm_submit(&cdcacm, buffer, len);
+    usbus_cdc_acm_flush(&cdcacm);
     /* Use tsrb and flush */
     return len;
 }
 
-void cdcacm_rx_pipe(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
+void cdcacm_rx_pipe(usbus_cdcacm_device_t *cdcacm,
                            uint8_t *data, size_t len)
 {
-    (void)usbus;
     (void)cdcacm;
     for (size_t i = 0; i < len; i++) {
         isrpipe_write_one(&cdc_stdio_isrpipe, data[i]);
@@ -119,6 +119,6 @@ void cdcacm_rx_pipe(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
 
 void usb_cdcacm_stdio_init(usbus_t *usbus)
 {
-    cdc_init(usbus, &cdcacm, cdcacm_rx_pipe, _cdc_tx_buf_mem,
+    cdc_init(usbus, &cdcacm, cdcacm_rx_pipe, NULL, _cdc_tx_buf_mem,
              sizeof(_cdc_tx_buf_mem));
 }
