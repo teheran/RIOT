@@ -46,8 +46,8 @@ void auto_init_usb(void)
 
     /* USBUS function handlers initialization */
 #ifdef MODULE_STDIO_CDC_ACM
-    void usb_cdcacm_stdio_init(usbus_t *usbus);
-    usb_cdcacm_stdio_init(&usbus);
+    void usb_cdc_acm_stdio_init(usbus_t *usbus);
+    usb_cdc_acm_stdio_init(&usbus);
 #endif
 
 #ifdef MODULE_USBUS_CDC_ECM
