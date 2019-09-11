@@ -6,6 +6,25 @@
  * more details.
  */
 
+/**
+ * @defgroup    usbus_cdc_acm USBUS CDC ACM - USBUS CDC abstract control model
+ * @ingroup     usb
+ * @brief       USBUS CDC ACM interface module
+ *
+ * @{
+ *
+ * @file
+ * @brief       Interface and definitions for USB CDC ACM type interfaces in
+ *              USBUS.
+ *
+ *              The functionality provided here only implements the USB
+ *              specific handling. A different module is required to provide
+ *              functional handling of the data e.g. UART or STDIO integration.
+ *
+ * @author      Dylan Laduranty <dylan.laduranty@mesotic.com>
+ * @author      Koen Zandberg <koen@bergzand.net>
+ */
+
 #ifndef USB_USBUS_CDC_ACM_H
 #define USB_USBUS_CDC_ACM_H
 
@@ -42,8 +61,35 @@ typedef enum {
 
 typedef struct usbus_cdcacm_device usbus_cdcacm_device_t;
 
-typedef void (*usbus_cdcacm_cb_t)(usbus_t *usbus, usbus_cdcacm_device_t *cdc,
+/**
+ * @brief CDC ACM data callback.
+ *
+ * Callback for received data from the USB host
+ *
+ * @param[in]   cdcacm  CDC ACM handler context
+ * @param[in]   data    ptr to the data
+ * @param[in]   len     Length of the received data
+ */
+typedef void (*usbus_cdcacm_cb_t)(usbus_cdcacm_device_t *cdcacm,
                                   uint8_t *data, size_t len);
+
+/**
+ * @brief CDC ACM line coding callback.
+ *
+ * Callback for received line coding request from the USB host
+ *
+ * @param[in]   cdcacm  CDC ACM handler context
+ * @param[in]   baud    requested baud rate
+ * @param[in]   bits    requested number of data bits
+ * @param[in]   parity  requested parity
+ * @param[in]   stop    requested number of stop bits
+ *
+ * @return              0 when the mode is available
+ * @return              negative if the mode is not available
+ */
+typedef int (*usbus_cdcacm_coding_cb_t)(usbus_cdcacm_device_t *cdcacm,
+                                        uint32_t baud, uint8_t bits,
+                                        uint8_t parity, uint8_t stop);
 
 struct usbus_cdcacm_device {
     usbus_handler_t handler_ctrl;
@@ -51,6 +97,7 @@ struct usbus_cdcacm_device {
     usbus_interface_t iface_data;
     usbus_hdr_gen_t cdcacm_hdr;
     usbus_cdcacm_cb_t cb;
+    usbus_cdcacm_coding_cb_t coding_cb;
     tsrb_t tsrb;
     usbus_t *usbus;
     size_t occupied;
@@ -58,9 +105,40 @@ struct usbus_cdcacm_device {
     event_t flush;
 };
 
-int cdc_init(usbus_t *usbus, usbus_cdcacm_device_t *handler,
-             usbus_cdcacm_cb_t cb, uint8_t *buf, size_t len);
-size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const char *buf, size_t len);
+/**
+ * @brief Initialize an USBUS CDC ACM interface
+ *
+ * @param[in]   usbus       USBUS context to register with
+ * @param[in]   handler     USBUS CDC ACM handler
+ * @param[in]   cb          Callback for data from the USB interface
+ * @param[in]   coding_cb   Callback for control settings
+ * @param[in]   buf         Buffer for data to the USB interface
+ * @param[in]   len         Size in bytes of the buffer
+ */
+void usbus_cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
+                       usbus_cdcacm_cb_t cb,
+                       usbus_cdcacm_coding_cb_t coding_cb,
+                       uint8_t *buf, size_t len);
+
+/**
+ * @brief Submit bytes to the CDC ACM handler
+ *
+ * @param[in]   cdcacm      USBUS CDC ACM handler context
+ * @param[in]   buf         buffer to submit
+ * @param[in]   len         length of the submitted buffer
+ *
+ * @return                  Number of bytes added to the CDC ACM ring buffer
+ */
+size_t usbus_cdcacm_submit(usbus_cdcacm_device_t *cdcacm,
+                           const uint8_t *buf, size_t len);
+
+/**
+ * @brief Flush the buffer to the USB host
+ *
+ * @param[in]   cdcacm      USBUS CDC ACM handler context
+ */
+void usbus_cdcacm_flush(usbus_cdcacm_device_t *cdcacm);
+
 #ifdef __cplusplus
 }
 #endif
