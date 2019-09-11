@@ -45,13 +45,13 @@ void auto_init_usb(void)
     usbus_init(&usbus, usbdev);
 
     /* USBUS function handlers initialization */
-#ifdef MODULE_USBUS_CDC_ECM
-    usbus_cdcecm_init(&usbus, &cdcecm);
-#endif
-
 #ifdef MODULE_STDIO_CDC_ACM
     void usb_cdcacm_stdio_init(usbus_t *usbus);
     usb_cdcacm_stdio_init(&usbus);
+#endif
+
+#ifdef MODULE_USBUS_CDC_ECM
+    usbus_cdcecm_init(&usbus, &cdcecm);
 #endif
 
     /* Finally initialize USBUS thread */
