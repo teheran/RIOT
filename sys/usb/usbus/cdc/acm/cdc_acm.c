@@ -135,9 +135,9 @@ void usbus_cdc_acm_flush(usbus_cdcacm_device_t *cdcacm)
     }
 }
 
-int cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
-             usbus_cdcacm_cb_t cb, usbus_cdcacm_coding_cb_t coding_cb,
-             uint8_t *buf, size_t len)
+void usbus_cdc_acm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
+                        usbus_cdcacm_cb_t cb, usbus_cdcacm_coding_cb_t coding_cb,
+                        uint8_t *buf, size_t len)
 {
     memset(cdcacm, 0, sizeof(usbus_cdcacm_device_t));
     cdcacm->usbus = usbus;
@@ -146,7 +146,7 @@ int cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
     cdcacm->cb = cb;
     cdcacm->coding_cb = coding_cb;
     cdcacm->state = USBUS_CDCACM_LINE_STATE_DISCONNECTED;
-    usbus_register_event_handler(usbus, &cdcacm->handler);
+    usbus_register_event_handler(usbus, &cdcacm->handler_ctrl);
 }
 
 static void _init(usbus_t *usbus, usbus_handler_t *handler)

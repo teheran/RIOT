@@ -115,10 +115,10 @@ struct usbus_cdcacm_device {
  * @param[in]   buf         Buffer for data to the USB interface
  * @param[in]   len         Size in bytes of the buffer
  */
-void usbus_cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
-                       usbus_cdcacm_cb_t cb,
-                       usbus_cdcacm_coding_cb_t coding_cb,
-                       uint8_t *buf, size_t len);
+void usbus_cdc_acm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
+                        usbus_cdcacm_cb_t cb,
+                        usbus_cdcacm_coding_cb_t coding_cb,
+                        uint8_t *buf, size_t len);
 
 /**
  * @brief Submit bytes to the CDC ACM handler
@@ -129,7 +129,7 @@ void usbus_cdcacm_init(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm,
  *
  * @return                  Number of bytes added to the CDC ACM ring buffer
  */
-size_t usbus_cdcacm_submit(usbus_cdcacm_device_t *cdcacm,
+size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm,
                            const uint8_t *buf, size_t len);
 
 /**
@@ -137,7 +137,7 @@ size_t usbus_cdcacm_submit(usbus_cdcacm_device_t *cdcacm,
  *
  * @param[in]   cdcacm      USBUS CDC ACM handler context
  */
-void usbus_cdcacm_flush(usbus_cdcacm_device_t *cdcacm);
+void usbus_cdc_acm_flush(usbus_cdcacm_device_t *cdcacm);
 
 #ifdef __cplusplus
 }
