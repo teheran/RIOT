@@ -1,0 +1,7 @@
+# This board uses the vendor's serial bootloader
+
+PROGRAMMER ?= nrfutil
+
+# The actual flashing is under active exploration
+
+include $(RIOTBOARD)/common/nrf52/Makefile.include

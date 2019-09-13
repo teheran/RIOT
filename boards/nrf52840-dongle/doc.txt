@@ -1,0 +1,35 @@
+/**
+@defgroup    boards_nrf52840-dongle nRF52840-Dongle
+@ingroup     boards
+@brief       Support for the nRF52840-Dongle
+
+### General information
+
+The [nRF52840-Dongle)
+is a bare USB-stick shaped device that houses barely anything than the
+nRF52840 itself, which offers BLE and 802.15.4 connectivity.
+
+Unlike similar sticks (like the @ref boards_nrf52840-mdk), it features no
+dedicated programmer hardware but relies on direct USB communication with a
+built-in bootloader.
+
+The board features two LEDs (green, RGB), a user and a reset button as well as
+15 extrnal pins.
+
+### Links
+
+- [nRF52840 web page](https://www.nordicsemi.com/?sc_itemid=%7BCDCCA013-FE4C-4655-B20C-1557AB6568C9%7D)
+- [documentation and hardware description](https://infocenter.nordicsemi.com/topic/ug_nrf52840_dongle/UG/nrf52840_Dongle/intro.html?cp=3_0_5)
+
+### Flash the board
+
+That's a good question.
+
+### Accessing STDIO via USB
+
+This board has no UART connected via a hardware or programmer USB-UART; USB
+terminal functionality can only be obtained using USBUS.
+
+This is work in progress.
+
+ */
