@@ -5,16 +5,16 @@
 
 ### General information
 
-The [nRF52840-Dongle)
-is a bare USB-stick shaped device that houses barely anything than the
-nRF52840 itself, which offers BLE and 802.15.4 connectivity.
+The nRF52840-Dongle is a bare USB-stick shaped device that houses barely
+anything than the nRF52840 itself, which offers BLE and 802.15.4 and USB
+connectivity.
 
 Unlike similar sticks (like the @ref boards_nrf52840-mdk), it features no
 dedicated programmer hardware but relies on direct USB communication with a
 built-in bootloader.
 
-The board features two LEDs (green, RGB), a user and a reset button as well as
-15 extrnal pins.
+The board features two LEDs (LD1: green, LD2: RGB), a user (SW1) and a
+reset button as well as 15 external pins.
 
 ### Links
 
@@ -25,17 +25,20 @@ The board features two LEDs (green, RGB), a user and a reset button as well as
 
 The board is flashed using its on-board boot loader; the
 [nrfutil](https://github.com/NordicSemiconductor/pc-nrfutil) program needs to
-be installed to turn the binary into a suitable zip file and send it to the
+be installed. That can turn the binary into a suitable zip file and send it to the
 bootloader.
 
-The bootloader can be entered by pressing the board's reset button, and
-indicates readiness by pulsing LED2 in red.
+The process is automated in the usual `make flash` target. For that process to
+complete, you need to enter the bootloader manually by pressing the board's
+reset button. Readiness of the bootloader is indicated by LD2 pulsing in red.
 
-### Accessing STDIO via USB
+### Accessing STDIO
 
-This board has no UART connected via a hardware or programmer USB-UART; USB
-terminal functionality can only be obtained using USBUS.
+This board has no UART connected via any hardware or programmer USB-UART;
+terminal functionality can only be obtained using USBUS once
+[#11085](https://github.com/RIOT-OS/RIOT/pull/11085) is merged.
 
-This is work in progress.
+In the mean time, pins 0.13 and 0.15 are configured as RX and TX on a serial
+console.
 
  */

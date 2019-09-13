@@ -27,30 +27,30 @@ extern "C" {
 #endif
 
 /**
- * @brief    LED configuration
+ * @brief    LED and button configuration for SAUL
  */
 static const  saul_gpio_params_t saul_gpio_params[] =
 {
     {
-        .name  = "LED 1",
+        .name  = "LD 1",
         .pin   = LED0_PIN,
         .mode  = GPIO_OUT,
         .flags = (SAUL_GPIO_INVERTED | SAUL_GPIO_INIT_CLEAR),
     },
     {
-        .name  = "LED 2 Red",
+        .name  = "LD 2 Red",
         .pin   = LED1_PIN,
         .mode  = GPIO_OUT,
         .flags = (SAUL_GPIO_INVERTED | SAUL_GPIO_INIT_CLEAR),
     },
     {
-        .name  = "LED 2 Green",
+        .name  = "LD 2 Green",
         .pin   = LED2_PIN,
         .mode  = GPIO_OUT,
         .flags = (SAUL_GPIO_INVERTED | SAUL_GPIO_INIT_CLEAR),
     },
     {
-        .name  = "LED 2 Blue",
+        .name  = "LD 2 Blue",
         .pin   = LED3_PIN,
         .mode  = GPIO_OUT,
         .flags = (SAUL_GPIO_INVERTED | SAUL_GPIO_INIT_CLEAR),

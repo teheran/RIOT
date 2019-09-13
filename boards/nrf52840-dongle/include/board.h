@@ -30,10 +30,14 @@ extern "C" {
  * @name    LED pin configuration
  * @{
  */
+ /** @brief The LED labelled LD1 */
 #define LED0_PIN            GPIO_PIN(0, 6)
 
+ /** @brief The red channel of the LED labelled LD2 */
 #define LED1_PIN            GPIO_PIN(0, 8)
+ /** @brief The green channel of the LED labelled LD2 */
 #define LED2_PIN            GPIO_PIN(1, 9)
+ /** @brief The blue channel of the LED labelled LD2 */
 #define LED3_PIN            GPIO_PIN(0, 12)
 
 /** @} */
@@ -42,6 +46,7 @@ extern "C" {
  * @name    Button pin configuration
  * @{
  */
+/** @brief The button labelled SW1 */
 #define BTN0_PIN            GPIO_PIN(1, 6)
 /** @} */
 
