@@ -22,9 +22,7 @@
 
 #include "periph_cpu.h"
 #include "cfg_clock_32_1.h"
-#include "cfg_i2c_default.h"
 #include "cfg_rtt_default.h"
-#include "cfg_spi_default.h"
 #include "cfg_timer_default.h"
 
 #ifdef __cplusplus
@@ -33,9 +31,13 @@ extern "C" {
 
 /**
  * @name    UART configuration
+ *
+ * This board does not have explicit UART pins, but until a USB TTY can
+ * serve as a serial console, not defining any UART makes examples that build a shell much harder.
+ *
  * @{
  */
-/* Not actually labelled or anything, but to having I'd rather remove stuff when I know the rest works */
+
 static const uart_conf_t uart_config[] = {
     {
         .dev        = NRF_UARTE0,
