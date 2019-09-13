@@ -2,6 +2,16 @@
 
 PROGRAMMER ?= nrfutil
 
+# We're not using the softdevice actually (nor use JLink as in
+# nrf52/Makefile.include), but the linker script should be a good starting
+# point for using the nRF bootloader and not breaking the soft device.
+
+LINKER_SCRIPT ?= $(RIOTBOARD)/$(BOARD)/ldscripts/application.ld
+
 # The actual flashing is under active exploration
+#
+ifeq (nrfutil,$(PROGRAMMER))
+	FLASHFILE ?= $(HEXFILE)
+endif
 
 include $(RIOTBOARD)/common/nrf52/Makefile.include
