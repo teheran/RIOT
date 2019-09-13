@@ -8,10 +8,20 @@ PROGRAMMER ?= nrfutil
 
 LINKER_SCRIPT ?= $(RIOTBOARD)/$(BOARD)/ldscripts/application.ld
 
-# The actual flashing is under active exploration
-#
+# This is under active exploration, and should probably go into its one
+# makefiles/tools file
+
 ifeq (nrfutil,$(PROGRAMMER))
-	FLASHFILE ?= $(HEXFILE)
+
+FLASHFILE = $(HEXFILE).zip
+FLASHER = nrfutil
+FFLAGS = dfu usb-serial --port=/dev/ttyACM0 --package=$(HEXFILE).zip
+
+RESET ?= false
+
+%.hex.zip: %.hex
+	nrfutil pkg generate --hw-version 52 --sd-req 0x00 --application-version 1 --application $< $@
+
 endif
 
 include $(RIOTBOARD)/common/nrf52/Makefile.include

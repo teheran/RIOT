@@ -23,7 +23,13 @@ The board features two LEDs (green, RGB), a user and a reset button as well as
 
 ### Flash the board
 
-That's a good question.
+The board is flashed using its on-board boot loader; the
+[nrfutil](https://github.com/NordicSemiconductor/pc-nrfutil) program needs to
+be installed to turn the binary into a suitable zip file and send it to the
+bootloader.
+
+The bootloader can be entered by pressing the board's reset button, and
+indicates readiness by pulsing LED2 in red.
 
 ### Accessing STDIO via USB
 
