@@ -82,6 +82,7 @@ PSEUDOMODULES += stdin
 PSEUDOMODULES += stdio_ethos
 PSEUDOMODULES += stdio_uart_rx
 PSEUDOMODULES += sock_dtls
+PSEUDOMODULES += stdio_cdc_acm
 
 # print ascii representation in function od_hex_dump()
 PSEUDOMODULES += od_string
