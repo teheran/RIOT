@@ -20,7 +20,6 @@
 
 #include "usb/descriptor.h"
 #include "usb/cdc.h"
-#include "usb/cdc/acm.h"
 #include "usb/descriptor.h"
 #include "usb/usbus.h"
 #include "usb/usbus/cdc/acm.h"
@@ -34,7 +33,7 @@
 static void _init(usbus_t *usbus, usbus_handler_t *handler);
 static void _event_handler(usbus_t *usbus, usbus_handler_t *handler, usbus_event_usb_t event);
 static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
-                          usbus_setuprq_state_t state, usb_setup_t *setup);
+                          usbus_control_request_state_t state, usb_setup_t *setup);
 static void _transfer_handler(usbus_t *usbus, usbus_handler_t *handler,
                              usbdev_ep_t *ep, usbus_event_transfer_t event);
 
@@ -44,7 +43,7 @@ static void _handle_flush(event_t *ev);
 static const usbus_handler_driver_t cdc_driver = {
     .init = _init,
     .event_handler = _event_handler,
-    .setup_handler = _setup_handler,
+    .control_handler = _setup_handler,
     .transfer_handler = _transfer_handler,
 };
 
@@ -201,19 +200,19 @@ static void _init(usbus_t *usbus, usbus_handler_t *handler)
 }
 
 static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
-                          usbus_setuprq_state_t state, usb_setup_t *setup)
+                          usbus_control_request_state_t state, usb_setup_t *setup)
 {
     (void)state;
     (void)usbus;
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
     DEBUG("Request:0x%x\n", setup->request);
     switch(setup->request) {
-        case USB_SETUP_REQ_SET_LINE_CODING:
+        case USB_CDC_MGNT_REQUEST_SET_LINE_CODING:
             DEBUG("Value:0x%x, interface:%d, len:%d\n", setup->value,
                                                         setup->index,
                                                         setup->length);
             break;
-        case USB_SETUP_REQ_SET_CONTROL_LINE_STATE:
+        case USB_CDC_MGNT_REQUEST_SET_CONTROL_LINE_STATE:
             if (setup->value & USB_CDC_ACM_CONTROL_LINE_DTE) {
                 DEBUG("CDC ACM: DTE Enabled\n");
                 cdcacm->state = USBUS_CDCACM_LINE_STATE_DTE;
