@@ -31,8 +31,9 @@
 
 static void _init(usbus_t *usbus, usbus_handler_t *handler);
 static void _event_handler(usbus_t *usbus, usbus_handler_t *handler, usbus_event_usb_t event);
-static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
-                          usbus_setuprq_state_t state, usb_setup_t *setup);
+static int _control_handler(usbus_t *usbus, usbus_handler_t *handler,
+                            usbus_control_request_state_t state,
+                            usb_setup_t *setup);
 static void _transfer_handler(usbus_t *usbus, usbus_handler_t *handler,
                              usbdev_ep_t *ep, usbus_event_transfer_t event);
 
@@ -41,7 +42,7 @@ static void _handle_flush(event_t *ev);
 static const usbus_handler_driver_t cdc_driver = {
     .init = _init,
     .event_handler = _event_handler,
-    .setup_handler = _setup_handler,
+    .control_handler = _control_handler,
     .transfer_handler = _transfer_handler,
 };
 
@@ -194,15 +195,16 @@ static void _init(usbus_t *usbus, usbus_handler_t *handler)
     usbus_handler_set_flag(handler, USBUS_HANDLER_FLAG_RESET);
 }
 
-static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
-                          usbus_setuprq_state_t state, usb_setup_t *setup)
+static int _control_handler(usbus_t *usbus, usbus_handler_t *handler,
+                            usbus_control_request_state_t state,
+                            usb_setup_t *setup)
 {
     (void)state;
     (void)usbus;
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
     switch(setup->request) {
         case USB_CDC_MGNT_REQUEST_SET_LINE_CODING:
-            if (state == USBUS_SETUPRQ_OUTDATA &&
+            if (state == USBUS_CONTROL_REQUEST_STATE_OUTDATA &&
                     setup->length == sizeof(usb_req_cdcacm_coding_t)) {
                 size_t len = 0;
                 usb_req_cdcacm_coding_t *coding =
@@ -243,7 +245,7 @@ static int _setup_handler(usbus_t *usbus, usbus_handler_t *handler,
             DEBUG("unhandled USB setup request:0x%x\n", setup->request);
             return -1;
     }
-    return 0;
+    return 1;
 }
 
 static void _handle_in(usbus_cdcacm_device_t *cdcacm,
