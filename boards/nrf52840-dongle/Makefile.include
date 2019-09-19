@@ -15,7 +15,7 @@ ifeq (nrfutil,$(PROGRAMMER))
 
 FLASHFILE = $(HEXFILE).zip
 FLASHER = nrfutil
-FFLAGS = dfu usb-serial --port=/dev/ttyACM0 --package=$(HEXFILE).zip
+FFLAGS = dfu usb-serial --port=${PORT} --package=$(HEXFILE).zip
 
 RESET ?= false
 
