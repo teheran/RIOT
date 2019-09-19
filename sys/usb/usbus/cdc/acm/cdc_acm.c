@@ -125,12 +125,7 @@ static size_t _gen_full_acm_descriptor(usbus_t *usbus, void *arg)
 /* Submit (ACM interface in) */
 size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const uint8_t *buf, size_t len)
 {
-    for (size_t i = 0; i < len; i++) {
-        if (tsrb_add_one(&cdcacm->tsrb, buf[i]) < -1) {
-            return i;
-        }
-    }
-    return len;
+    return tsrb_add(&cdcacm->tsrb, buf, len);
 }
 
 void usbus_cdc_acm_set_coding_cb(usbus_cdcacm_device_t *cdcacm,
