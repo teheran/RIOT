@@ -2,4 +2,16 @@ ifneq (,$(filter saul_default,$(USEMODULE)))
   USEMODULE += saul_gpio
 endif
 
+# It'd be nice to pull this in on any stdin dependency and not just shell, but
+# that's the common one, and by the time shell has pulled in stdin, the default
+# stdio_uart has already been set.
+#
+# Maybe have a shell_default like netdev_default?
+ifneq (,$(filter shell,$(USEMODULE)))
+  ifeq (,$(filter stdio_%,$(USEMODULE)))
+    USEMODULE += auto_init_usbus
+    USEMODULE += stdio_cdc_acm
+  endif
+endif
+
 include $(RIOTBOARD)/common/nrf52/Makefile.dep
