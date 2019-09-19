@@ -62,6 +62,10 @@ ifneq (,$(filter log_%,$(USEMODULE)))
   include $(RIOTBASE)/sys/log/Makefile.include
 endif
 
+ifneq (,$(filter usbus,$(USEMODULE)))
+  include $(RIOTBASE)/sys/usb/Makefile.include
+endif
+
 ifneq (,$(filter newlib,$(USEMODULE)))
   include $(RIOTMAKE)/libc/newlib.mk
 endif
