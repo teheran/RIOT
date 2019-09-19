@@ -24,4 +24,11 @@ RESET ?= false
 
 endif
 
+# In the .dep stage we may have added a second netdev; make sure there's room
+# for that.
+ifneq (,$(filter gnrc_netdev_default,$(USEMODULE)))
+    GNRC_NETIF_NUMOF ?= 1
+    $(eval GNRC_NETIF_NUMOF=$(shell echo $$(($(GNRC_NETIF_NUMOF)+1))))
+endif
+
 include $(RIOTBOARD)/common/nrf52/Makefile.include

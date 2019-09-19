@@ -14,4 +14,12 @@ ifneq (,$(filter shell,$(USEMODULE)))
   endif
 endif
 
+# This will be an additional default netdev to the one set in
+# common/nrf52/Makefile.dep. NETIF_NUMOF will be bumped in the
+# Makefile.include.
+ifneq (,$(filter gnrc_netdev_default,$(USEMODULE)))
+  USEMODULE += auto_init_usbus
+  USEMODULE += usbus_cdc_ecm
+endif
+
 include $(RIOTBOARD)/common/nrf52/Makefile.dep
