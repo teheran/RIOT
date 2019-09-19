@@ -20,14 +20,7 @@
  */
 
 #include <stdio.h>
-#if MODULE_VFS
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-#endif
-#include "stdio_uart.h"
 
-#include "board.h"
 #include "isrpipe.h"
 
 #include "usb/usbus.h"
@@ -38,58 +31,15 @@
 #endif
 
 static usbus_cdcacm_device_t cdcacm;
-static uint8_t _cdc_tx_buf_mem[STDIO_UART_RX_BUFSIZE * 4];
-static uint8_t _cdc_rx_buf_mem[STDIO_UART_RX_BUFSIZE];
+static uint8_t _cdc_tx_buf_mem[USBUS_CDC_ACM_STDIO_BUF_SIZE];
+static uint8_t _cdc_rx_buf_mem[USBUS_CDC_ACM_STDIO_BUF_SIZE];
 isrpipe_t cdc_stdio_isrpipe = ISRPIPE_INIT(_cdc_rx_buf_mem);
-
-#if MODULE_VFS
-static ssize_t stdio_vfs_read(vfs_file_t *filp, void *dest, size_t nbytes);
-static ssize_t stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes);
-
-/**
- * @brief VFS file operation table for stdin/stdout/stderr
- */
-static vfs_file_ops_t uart_stdio_vfs_ops = {
-    .read = stdio_vfs_read,
-    .write = stdio_vfs_write,
-};
-
-static ssize_t stdio_vfs_read(vfs_file_t *filp, void *dest, size_t nbytes)
-{
-    int fd = filp->private_data.value;
-    if (fd != STDIN_FILENO) {
-        return -EBADF;
-    }
-    return stdio_read(dest, nbytes);
-}
-
-static ssize_t stdio_vfs_write(vfs_file_t *filp, const void *src, size_t nbytes)
-{
-    int fd = filp->private_data.value;
-    if (fd == STDIN_FILENO) {
-        return -EBADF;
-    }
-    return stdio_write(src, nbytes);
-}
-#endif
 
 void stdio_init(void)
 {
     /* Initialize this side of the CDC ACM pipe */
 #if MODULE_VFS
-    int fd;
-    fd = vfs_bind(STDIN_FILENO, O_RDONLY, &uart_stdio_vfs_ops, (void *)STDIN_FILENO);
-    if (fd < 0) {
-        /* How to handle errors on init? */
-    }
-    fd = vfs_bind(STDOUT_FILENO, O_WRONLY, &uart_stdio_vfs_ops, (void *)STDOUT_FILENO);
-    if (fd < 0) {
-        /* How to handle errors on init? */
-    }
-    fd = vfs_bind(STDERR_FILENO, O_WRONLY, &uart_stdio_vfs_ops, (void *)STDERR_FILENO);
-    if (fd < 0) {
-        /* How to handle errors on init? */
-    }
+    vfs_bind_stdio();
 #endif
 }
 
