@@ -45,6 +45,13 @@ extern "c" {
 #endif /* USBUS_CDCACM_BUFFER_FOR_DTE */
 
 /**
+ * @brief Buffer size for STDIN and STDOUT data to and from USB
+ */
+#ifndef USBUS_CDC_ACM_STDIO_BUF_SIZE
+#define USBUS_CDC_ACM_STDIO_BUF_SIZE 128
+#endif
+
+/**
  * @brief CDC ACM line state as reported by the host computer
  */
 typedef enum {
