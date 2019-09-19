@@ -204,8 +204,8 @@ static int _control_handler(usbus_t *usbus, usbus_handler_t *handler,
     usbus_cdcacm_device_t *cdcacm = (usbus_cdcacm_device_t*)handler;
     switch(setup->request) {
         case USB_CDC_MGNT_REQUEST_SET_LINE_CODING:
-            if (state == USBUS_CONTROL_REQUEST_STATE_OUTDATA &&
-                    setup->length == sizeof(usb_req_cdcacm_coding_t)) {
+            if ((state == USBUS_CONTROL_REQUEST_STATE_OUTDATA) &&
+                    (setup->length == sizeof(usb_req_cdcacm_coding_t))) {
                 size_t len = 0;
                 usb_req_cdcacm_coding_t *coding =
                     (usb_req_cdcacm_coding_t*)usbus_control_get_out_data(usbus,
@@ -251,8 +251,8 @@ static int _control_handler(usbus_t *usbus, usbus_handler_t *handler,
 static void _handle_in(usbus_cdcacm_device_t *cdcacm,
                        usbdev_ep_t *ep)
 {
-    if (cdcacm->usbus->state != USBUS_STATE_CONFIGURED ||
-        cdcacm->state != USBUS_CDCACM_LINE_STATE_DTE) {
+    if ((cdcacm->usbus->state != USBUS_STATE_CONFIGURED) ||
+        (cdcacm->state != USBUS_CDCACM_LINE_STATE_DTE)) {
         return;
     }
     while (!tsrb_empty(&cdcacm->tsrb)) {
