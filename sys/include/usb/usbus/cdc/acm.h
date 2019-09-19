@@ -146,6 +146,17 @@ size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm,
  */
 void usbus_cdc_acm_flush(usbus_cdcacm_device_t *cdcacm);
 
+/**
+ * @brief Set the callback for control settings
+ *
+ * Interrupts are disabled during update to ensure thread safety
+ *
+ * @param[in]   cdcacm      USBUS CDC ACM handler context
+ * @param[in]   coding_cb   Callback for control settings
+ */
+void usbus_cdc_acm_set_coding_cb(usbus_cdcacm_device_t *cdcacm,
+                                 usbus_cdcacm_coding_cb_t *coding_cb);
+
 #ifdef __cplusplus
 }
 #endif
