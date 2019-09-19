@@ -134,7 +134,7 @@ size_t usbus_cdc_acm_submit(usbus_cdcacm_device_t *cdcacm, const uint8_t *buf, s
 }
 
 void usbus_cdc_acm_set_coding_cb(usbus_cdcacm_device_t *cdcacm,
-                                 usbus_cdcacm_coding_cb_t *coding_cb)
+                                 usbus_cdcacm_coding_cb_t coding_cb)
 {
     irq_disable();
     cdcacm->coding_cb = coding_cb;

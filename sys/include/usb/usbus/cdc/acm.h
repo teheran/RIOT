@@ -155,7 +155,7 @@ void usbus_cdc_acm_flush(usbus_cdcacm_device_t *cdcacm);
  * @param[in]   coding_cb   Callback for control settings
  */
 void usbus_cdc_acm_set_coding_cb(usbus_cdcacm_device_t *cdcacm,
-                                 usbus_cdcacm_coding_cb_t *coding_cb);
+                                 usbus_cdcacm_coding_cb_t coding_cb);
 
 #ifdef __cplusplus
 }
