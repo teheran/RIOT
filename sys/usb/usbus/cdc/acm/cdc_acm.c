@@ -66,7 +66,7 @@ static size_t _gen_mngt_descriptor(usbus_t *usbus, usbus_cdcacm_device_t *cdcacm
     /* functional call management descriptor */
     mngt.length = sizeof(usb_desc_call_mngt_t);
     mngt.type = USB_TYPE_DESCRIPTOR_CDC;
-    mngt.subtype = 0x1;
+    mngt.subtype = USB_CDC_DESCR_SUBTYPE_CALL_MGMT;
     mngt.capabalities = 0;
     mngt.data_if = cdcacm->iface_data.idx;
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&mngt, sizeof(mngt));
@@ -80,7 +80,7 @@ static size_t _gen_union_descriptor(usbus_t *usbus,
     /* functional union descriptor */
     uni.length = sizeof(usb_desc_union_t);
     uni.type = USB_TYPE_DESCRIPTOR_CDC;
-    uni.subtype = 0x6;
+    uni.subtype = USB_CDC_DESCR_SUBTYPE_UNION;
     uni.master_if = cdcacm->iface_ctrl.idx;
     uni.slave_if = cdcacm->iface_data.idx;
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&uni, sizeof(uni));
@@ -93,7 +93,7 @@ static size_t _gen_acm_descriptor(usbus_t *usbus)
     /* functional cdc acm descriptor */
     acm.length = sizeof(usb_desc_acm_t);
     acm.type = USB_TYPE_DESCRIPTOR_CDC;
-    acm.subtype = 0x02;
+    acm.subtype = USB_CDC_DESCR_SUBTYPE_ACM;
     acm.capabalities = 0x00;
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&acm, sizeof(acm));
     return sizeof(usb_desc_acm_t);
@@ -104,9 +104,9 @@ static size_t _gen_cdc_descriptor(usbus_t *usbus)
     usb_desc_cdc_t cdc;
     /* functional cdc descriptor */
     cdc.length = sizeof(usb_desc_cdc_t);
-    cdc.bcd_cdc = 0x0120;
+    cdc.bcd_cdc = USB_CDC_VERSION_BCD;
     cdc.type = USB_TYPE_DESCRIPTOR_CDC;
-    cdc.subtype = 0x00;
+    cdc.subtype = USB_CDC_DESCR_SUBTYPE_FUNCTIONAL;
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&cdc, sizeof(cdc));
     return sizeof(usb_desc_cdc_t);
 }
