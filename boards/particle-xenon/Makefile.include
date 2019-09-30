@@ -1,3 +1,19 @@
 USEMODULE += boards_common_particle_mesh
 
+CFLAGS += -DPARTICLE_MONOFIRMWARE
+LINKER_SCRIPT ?= $(RIOTBOARD)/$(BOARD)/ldscripts/in-particle-monofirmware.ld
+FLASHFILE = $(BINFILE)-checksummed
+FLASHER = dfu-util
+FFLAGS = -d 0x2B04:0xD00E -a 0 -s 0x30000:leave -D ${FLASHFILE}
+
+%.bin-checksummed: %.bin %.elf
+	# Verify that the module info is at the right location
+	nm --print-size "$*.elf" |grep "00030200 00000018 T particle_monofirmware_module_info" >/dev/null
+	
+	#python3 -c "import sys; data = sys.stdin.buffer.read(); assert int.from_bytes(data[0x204:4], 'little') == len(data) + 0x30000, 'module_info calculated wrong binary size'" < "$<"
+	#cp "$<" "$@"
+	python3 -c "import sys; data = sys.stdin.buffer.read(); sys.stdout.buffer.write(data[:0x204] + (len(data) + 0x30000).to_bytes(4, 'little') + data[0x208:])" < "$<" > "$@"
+	
+	python3 -c "import sys, zlib; sys.stdout.buffer.write(zlib.crc32(open(sys.argv[-1], 'rb').read()).to_bytes(4, 'big'))" "$@" >> "$@"
+
 include $(RIOTBOARD)/common/particle-mesh/Makefile.include

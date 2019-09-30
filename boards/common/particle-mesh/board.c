@@ -25,6 +25,35 @@
 
 void board_init(void)
 {
+#ifdef PARTICLE_MONOFIRMWARE
+    // Set VTOR address to where our vector table is located (as does micropython)
+    // FIXME:
+    // * Use the abstractions (probbably this is the SCB->VTOR = _isr_Vectors
+    //   already present in cortexm_init.c
+    // * Find out whether this is actually required
+    // * If so, consider whether there's any benefit to an unpinned vectro
+    //   table now that we need to set it ourselves anyway. (Note that Particle
+    //   bootloader still appears to look into two magic locations: the
+    //   firmware start to see whether it contains something that looks like a
+    //   stack start address and a reset vector to jump into, and the
+    //   module_info_t at offset 0x200).
+    *((volatile uint32_t*)0xe000ed08) = 0x30000;
+
+    // Force keeping this sections -- the __attribute__((used)) in their macro
+    // expansions should do that, need to investigate.
+    extern uint32_t particle_monofirmware_padding;
+    extern uint32_t particle_monofirmware_module_info;
+    volatile uint32_t x;
+    x = (uint32_t)&particle_monofirmware_padding;
+    x = (uint32_t)&particle_monofirmware_module_info;
+    (void)x;
+
+    // Clear out POWER_CLOCK and GPIOTE interrupts set by the bootloader. (If
+    // something does enable them, it'll do so after the board_init call).
+    NVIC_DisableIRQ(0);
+    NVIC_DisableIRQ(6);
+#endif
+
     /* initialize the boards LEDs */
     gpio_init(LED0_PIN, GPIO_OUT);
     gpio_set(LED0_PIN);
