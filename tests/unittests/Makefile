@@ -31,7 +31,9 @@ BOARD_INSUFFICIENT_MEMORY := airfy-beacon \
                              arduino-zero \
                              b-l072z-lrwan1 \
                              blackpill \
+                             blackpill-128kib \
                              bluepill \
+                             bluepill-128kib \
                              calliope-mini \
                              cc2650-launchpad \
                              cc2650stk \
@@ -81,6 +83,7 @@ BOARD_INSUFFICIENT_MEMORY := airfy-beacon \
                              samd21-xpro \
                              samr21-xpro \
                              samr30-xpro \
+                             samr34-xpro \
                              sensebox_samd21 \
                              slstk3401a \
                              sltb001a \

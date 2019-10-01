@@ -27,6 +27,7 @@ PSEUDOMODULES += gnrc_neterr
 PSEUDOMODULES += gnrc_netapi_callbacks
 PSEUDOMODULES += gnrc_netapi_mbox
 PSEUDOMODULES += gnrc_pktbuf_cmd
+PSEUDOMODULES += gnrc_netif_cmd_%
 PSEUDOMODULES += gnrc_netif_dedup
 PSEUDOMODULES += gnrc_sixloenc
 PSEUDOMODULES += gnrc_sixlowpan_border_router_default
@@ -71,7 +72,6 @@ PSEUDOMODULES += saul_default
 PSEUDOMODULES += saul_gpio
 PSEUDOMODULES += saul_nrf_temperature
 PSEUDOMODULES += scanf_float
-PSEUDOMODULES += schedstatistics
 PSEUDOMODULES += sched_cb
 PSEUDOMODULES += semtech_loramac_rx
 PSEUDOMODULES += sock
@@ -80,6 +80,7 @@ PSEUDOMODULES += sock_tcp
 PSEUDOMODULES += sock_udp
 PSEUDOMODULES += stdin
 PSEUDOMODULES += stdio_ethos
+PSEUDOMODULES += stdio_cdc_acm
 PSEUDOMODULES += stdio_uart_rx
 PSEUDOMODULES += sock_dtls
 
@@ -106,6 +107,9 @@ PSEUDOMODULES += ccs811_full
 PSEUDOMODULES += cc1100
 PSEUDOMODULES += cc1100e
 PSEUDOMODULES += cc1101
+
+# include variants of mrf24j40 drivers as pseudo modules
+PSEUDOMODULES += mrf24j40m%
 
 # include variants of SX127X drivers as pseudo modules
 PSEUDOMODULES += sx1272

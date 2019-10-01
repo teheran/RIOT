@@ -6,7 +6,8 @@ BOARD ?= native
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
-BOARD_INSUFFICIENT_MEMORY := blackpill bluepill calliope-mini cc2650-launchpad \
+BOARD_INSUFFICIENT_MEMORY := blackpill blackpill-128kib bluepill \
+                             bluepill-128kib calliope-mini cc2650-launchpad \
                              cc2650stk hamilton i-nucleo-lrwan1 lsn50 \
                              maple-mini microbit nrf51dk nrf51dongle \
                              nucleo-f030r8 nucleo-f031k6 nucleo-f042k6 \
@@ -27,7 +28,7 @@ BOARD_INSUFFICIENT_MEMORY := blackpill bluepill calliope-mini cc2650-launchpad \
                              sodaq-one sodaq-sara-aff stk3600 stm32f3discovery \
                              stm32l0538-disco yunjia-nrf51822 \
                              esp8266-esp-12x esp8266-olimex-mod \
-                             esp8266-sparkfun-thing firefly
+                             esp8266-sparkfun-thing firefly samr34-xpro \
 
 BOARD_BLACKLIST := arduino-duemilanove arduino-leonardo \
                    arduino-mega2560 arduino-nano arduino-uno \
