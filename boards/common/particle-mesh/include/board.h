@@ -76,8 +76,14 @@ enum board_nrfantenna_selection {
     BOARD_NRFANTENNA_EXTERNAL,
 };
 
-/** Drive the on-board antenna switch to connect the nRF radio to a given @p
+/** @brief Antenna output selection
+ *
+ * Drive the on-board antenna switch to connect the nRF radio to a given @p
  * choice of antenna output.
+ *
+ * This can be called to change the antenna selection at runtime; for the
+ * default configuration that gets set during board initialization, see @ref
+ * boards_common_particle-mesh.
  * */
 void board_nrfantenna_select(enum board_nrfantenna_selection choice);
 
