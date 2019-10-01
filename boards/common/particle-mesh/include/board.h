@@ -81,8 +81,21 @@ enum board_nrfantenna_selection {
  * */
 void board_nrfantenna_select(enum board_nrfantenna_selection choice);
 
-#ifdef BOARD_PARTICLE_XENON
+#ifdef BOARD_PARTICLE_XENON || DOXYGEN
+/** The GPIO pin used to drive the VCTL1 pin of antenna switch
+ *
+ * Rather than actuating this directly, consider using the @ref
+ * board_nrfantenna_select function.
+ */
 #define VCTL1_PIN           GPIO_PIN(0, 24)
+/** The GPIO pin used to drive the VCTL2 pin of antenna switch
+ *
+ * This definition is left out for boards whose VCTL2 is driven by an inverter
+ * from VCTL1.
+ *
+ * Rather than actuating this directly, consider using the @ref
+ * board_nrfantenna_select function.
+ */
 #define VCTL2_PIN           GPIO_PIN(0, 25)
 #endif
 
