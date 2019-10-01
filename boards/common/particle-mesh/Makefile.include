@@ -1,3 +1,9 @@
+# This board's nRF radio comes with a uFL antenna plug and a built-in antenna.
+# Defaulting to the BUILTIN antenna. This should only be overridden to EXTERNAL
+# if an antenna is actually connected.
+BOARD_NRFANTENNA_DEFAULT ?= BUILTIN
+CFLAGS += -DBOARD_NRFANTENNA_DEFAULT=BOARD_NRFANTENNA_$(BOARD_NRFANTENNA_DEFAULT)
+
 # set default port depending on operating system
 PORT_LINUX ?= /dev/ttyUSB0
 PORT_DARWIN ?= $(firstword $(sort $(wildcard /dev/tty.SLAB_USBtoUART*)))
