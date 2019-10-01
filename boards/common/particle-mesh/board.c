@@ -34,12 +34,12 @@ void board_init(void)
     gpio_set(LED2_PIN);
 
     gpio_init(VCTL1_PIN, VCTLn_MODE);
-    // Suppress output to the UFL connector
+    /* Suppress output to the UFL connector */
     gpio_set(VCTL1_PIN);
 #ifdef VCTL2_PIN
-    // On boards without VCLT2_PIN (Boron), the VCTL2 net is driven by NOT(VCTL1)
+    /* On boards without VCLT2_PIN (Boron), the VCTL2 net is driven by NOT(VCTL1) */
     gpio_init(VCTL2_PIN, VCTLn_MODE);
-    // Enable output to the built-in antenna
+    /* Enable output to the built-in antenna */
     gpio_clear(VCTL2_PIN);
 #endif
 
