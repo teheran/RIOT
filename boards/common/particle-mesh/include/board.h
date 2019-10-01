@@ -66,6 +66,21 @@ extern "C" {
  * @{
  */
 
+/** Choices in antenna outputs for the board's nRF radio
+ *
+ * @see board_nrfantenna_select */
+enum board_nrfantenna_selection {
+    /** The board's built-in antenna */
+    BOARD_NRFANTENNA_BUILTIN,
+    /** The board's uFL connector */
+    BOARD_NRFANTENNA_EXTERNAL,
+};
+
+/** Drive the on-board antenna switch to connect the nRF radio to a given @p
+ * choice of antenna output.
+ * */
+void board_nrfantenna_select(enum board_nrfantenna_selection choice);
+
 #ifdef BOARD_PARTICLE_XENON
 #define VCTL1_PIN           GPIO_PIN(0, 24)
 #define VCTL2_PIN           GPIO_PIN(0, 25)
