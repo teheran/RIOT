@@ -114,8 +114,6 @@ void board_nrfantenna_select(enum board_nrfantenna_selection choice);
 #define VCTL1_PIN           GPIO_PIN(0, 7)
 #endif
 
-#define VCTLn_MODE          GPIO_OUT
-
 /** @} */
 
 #ifdef __cplusplus

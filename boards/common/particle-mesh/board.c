@@ -53,10 +53,10 @@ void board_init(void)
     gpio_init(LED2_PIN, GPIO_OUT);
     gpio_set(LED2_PIN);
 
-    gpio_init(VCTL1_PIN, VCTLn_MODE);
+    gpio_init(VCTL1_PIN, GPIO_OUT);
 #ifdef VCTL2_PIN
     /* On boards without VCLT2_PIN (Boron), the VCTL2 net is driven by NOT(VCTL1) */
-    gpio_init(VCTL2_PIN, VCTLn_MODE);
+    gpio_init(VCTL2_PIN, GPIO_OUT);
 #endif
 
     board_nrfantenna_select(BOARD_NRFANTENNA_DEFAULT);
