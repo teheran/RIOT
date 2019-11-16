@@ -1,0 +1,34 @@
+# This board uses the vendor's serial bootloader
+
+PROGRAMMER ?= nrfutil
+
+# We're not using the softdevice actually (nor use JLink as in
+# nrf52/Makefile.include), but the linker script should be a good starting
+# point for using the nRF bootloader and not breaking the soft device.
+
+LINKER_SCRIPT ?= $(RIOTBOARD)/$(BOARD)/ldscripts/application.ld
+
+# This is under active exploration, and should probably go into its one
+# makefiles/tools file
+
+ifeq (nrfutil,$(PROGRAMMER))
+
+FLASHFILE = $(HEXFILE).zip
+FLASHER = nrfutil
+FFLAGS = dfu usb-serial --port=${PORT} --package=$(HEXFILE).zip
+
+RESET ?= false
+
+%.hex.zip: %.hex
+	nrfutil pkg generate --hw-version 52 --sd-req 0x00 --application-version 1 --application $< $@
+
+endif
+
+# In the .dep stage we may have added a second netdev; make sure there's room
+# for that.
+ifneq (,$(filter gnrc_netdev_default,$(USEMODULE)))
+    GNRC_NETIF_NUMOF ?= 1
+    $(eval GNRC_NETIF_NUMOF=$(shell echo $$(($(GNRC_NETIF_NUMOF)+1))))
+endif
+
+include $(RIOTBOARD)/common/nrf52/Makefile.include

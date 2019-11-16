@@ -1,0 +1,42 @@
+/**
+@defgroup    boards_nrf52840-mdk-dongle nRF52840-MDK-Dongle
+@ingroup     boards
+@brief       Support for the nRF52840-MDK-Dongle
+
+### General information
+
+The Makerdiary [nRF52840-MDK-Dongle](https://github.com/makerdiary/nrf52840-mdk-usb-dongle/) alike Nordic's original dongle @ref boards_nrf52840-dongle
+but with a little different pinout and without dedicated reset button.
+
+The nRF52840-MDK-Dongle is a bare USB-stick shaped device that houses barely
+anything than the nRF52840 itself, which offers BLE and 802.15.4 and USB
+connectivity.
+
+Unlike similar sticks (like the @ref boards_nrf52840-mdk), it features no
+dedicated programmer hardware but relies on direct USB communication with a
+built-in bootloader.
+
+The board features one LED (D6: RGB), a user\reset (SW1) button as well as 15 external pins.
+
+### Flash the board
+
+The board is flashed using its on-board boot loader; the
+[nrfutil](https://github.com/NordicSemiconductor/pc-nrfutil) program needs to
+be installed. That can turn the binary into a suitable zip file and send it to the
+bootloader.
+
+The process is automated in the usual `make flash` target. For that process to
+complete, you need to enter the bootloader manually. While holding the dongle's 
+RESET/USR button, connect it to your host. Readiness of the bootloader is indicated 
+by D6 pulsing in red.
+
+### Accessing STDIO
+
+This board has no UART connected via any hardware or programmer USB-UART;
+terminal functionality can only be obtained using USBUS once
+[#11085](https://github.com/RIOT-OS/RIOT/pull/11085) is merged.
+
+In the mean time, pins 0.13 and 0.15 are configured as RX and TX on a serial
+console.
+
+ */
